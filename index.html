@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ORT Rankings — El ranking #1 no oficial</title>
+<meta name="description" content="El ranking #1 no oficial de la comunidad ORT. Postulate, verificate y entrá al ranking.">
+<meta name="theme-color" content="#0a0608">
+<meta property="og:title" content="ORT Rankings">
+<meta property="og:description" content="El ranking #1 no oficial de la comunidad ORT.">
+<meta property="og:image" content="/assets/img/logo.png">
+<meta property="og:type" content="website">
+<link rel="icon" href="/assets/img/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+
+<div id="nav"></div>
+
+<header class="hero">
+  <div class="container">
+    <img class="hero__crest" src="/assets/img/logo.png" alt="ORT Rankings" onerror="this.style.display='none'">
+    <div class="unofficial-badge">
+      <span class="dot"></span> RANKING #1 NO OFICIAL · SOLO POR DIVERSIÓN
+    </div>
+    <h1>ORT <em>RANKINGS</em></h1>
+    <p class="hero__sub">
+      La tabla oficial de la comunidad. Verificado por estudiantes, votado por todos,
+      actualizado cada temporada.
+    </p>
+    <div class="hero__stats" id="stats"></div>
+    <a class="banner" href="/entrar/" id="banner">
+      <span id="bannerIcon"></span> Postulate y entrá al ranking
+    </a>
+  </div>
+</header>
+
+<main class="container" id="votar">
+  <div class="toolbar">
+    <div class="search">
+      <span id="searchIcon"></span>
+      <input type="search" id="q" placeholder="Buscar por nombre o apodo…" autocomplete="off" aria-label="Buscar en el ranking">
+    </div>
+    <select class="select" id="orden" aria-label="Ordenar">
+      <option value="puesto">Por puesto</option>
+      <option value="votos">Más votados</option>
+      <option value="sube">Los que más subieron</option>
+      <option value="nuevos">Nuevos ingresos</option>
+    </select>
+  </div>
+
+  <div class="rank-list" id="lista" aria-live="polite"></div>
+</main>
+
+<div id="footer"></div>
+
+<script type="module" src="/assets/js/rankings.js"></script>
+</body>
+</html>

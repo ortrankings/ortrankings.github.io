@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reglas y requisitos — ORT Rankings</title>
+<meta name="description" content="Requisitos para entrar a ORT Rankings, cómo funciona la verificación y cómo se vota.">
+<meta name="theme-color" content="#0a0608">
+<link rel="icon" href="/assets/img/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+
+<div id="nav"></div>
+
+<main class="container form-page">
+  <a class="back" href="/"><span id="backIcon"></span> Volver al ranking</a>
+
+  <div class="eyebrow">Reglamento</div>
+  <h1 style="font-size:clamp(25px,7vw,34px);margin-top:5px">REQUISITOS PARA ENTRAR</h1>
+  <p class="muted" style="margin:9px 0 26px;font-size:14.5px">
+    Todo el ingreso es por la web. Completás el formulario, verificamos y te asignamos puesto.
+  </p>
+
+  <ol class="reglas">
+    <li>
+      <b>01 — Fotos</b>
+      <p>
+        Dos fotos actuales y nítidas, las dos obligatorias. La <strong>de frente</strong>,
+        con la cara visible y sin lentes de sol ni gorro, es la única que se publica: es la
+        que se ve en el ranking y en tu perfil. La <strong>de perfil</strong>
+        <strong>no se publica</strong>: la usamos solo por dentro para evaluar la solicitud
+        y asignarte el puesto.
+      </p>
+    </li>
+    <li>
+      <b>02 — Nombre y apellido</b>
+      <p>Como figura en tu documento. Nada de apodos acá: para eso está el tagline.</p>
+    </li>
+    <li>
+      <b>03 — N.º de estudiante</b>
+      <p>
+        Se usa <strong>únicamente</strong> para verificar que seas estudiante de ORT.
+        Queda guardado de forma privada, <strong>no se publica</strong> y no se comparte con nadie.
+      </p>
+    </li>
+    <li>
+      <b>04 — Carrera</b>
+      <p>Qué estás cursando. Se muestra en tu perfil y sirve para filtrar el ranking.</p>
+    </li>
+    <li>
+      <b>05 — Extras (opcionales)</b>
+      <p>
+        Tu usuario de Instagram y un dato a considerar: un apodo, un logro, un dato de color.
+        Es lo que le da personalidad a tu perfil.
+      </p>
+    </li>
+  </ol>
+
+  <h2 style="font-size:20px;margin:34px 0 12px">Verificación</h2>
+  <p class="muted" style="font-size:14.5px;margin:0 0 20px">
+    Una vez recibida la solicitud verificamos tu condición de estudiante y revisamos las fotos.
+    Si entrás, te asignamos un puesto y te avisamos por Instagram. Si algo no cumple los
+    requisitos te lo decimos y podés volver a postularte.
+  </p>
+
+  <h2 style="font-size:20px;margin:0 0 12px">Cómo se arma el ranking</h2>
+  <div class="cards" style="margin-top:0">
+    <div class="card">
+      <h3>El puesto</h3>
+      <p class="small muted" style="margin:0">
+        Lo define la administración en cada edición. Las flechas verdes y rojas muestran
+        cuánto subiste o bajaste respecto de la edición anterior.
+      </p>
+    </div>
+    <div class="card">
+      <h3>Los votos</h3>
+      <p class="small muted" style="margin:0">
+        Cualquiera puede votar, una vez por perfil. El contador de votos es el apoyo de la
+        comunidad y pesa en la decisión, pero no define el puesto por sí solo.
+      </p>
+    </div>
+  </div>
+
+  <h2 style="font-size:20px;margin:34px 0 12px">Bajas y respeto</h2>
+  <div class="notice notice--info" style="margin-bottom:11px">
+    <span id="iconInfo"></span>
+    <div>
+      Si estás en el ranking y querés salir, escribinos por <strong>mensaje directo</strong>
+      a <strong>@rankingsort</strong> desde tu cuenta. Vamos a verificar que seas vos y
+      después damos de baja el perfil. No se procesan bajas de terceros ni por otros medios.
+    </div>
+  </div>
+  <div class="notice notice--warn">
+    <span id="iconAlerta"></span>
+    <div>
+      No se aceptan postulaciones de terceros: solo entrás si te postulás vos.
+      Cualquier perfil con contenido ofensivo, fotos de otra persona o datos falsos se
+      da de baja sin aviso.
+    </div>
+  </div>
+
+  <div style="margin-top:28px;display:flex;gap:9px;flex-wrap:wrap">
+    <a class="btn btn--primary" href="/entrar/">Postularme ahora</a>
+    <a class="btn btn--ghost" href="/">Ver el ranking</a>
+  </div>
+</main>
+
+<div id="footer"></div>
+
+<script type="module">
+  import { $, ICON, montarNav, montarFooter } from "/assets/js/ui.js";
+  montarNav("reglas");
+  montarFooter();
+  $("#backIcon").innerHTML = ICON.atras;
+  $("#iconInfo").innerHTML = ICON.info;
+  $("#iconAlerta").innerHTML = ICON.alerta;
+</script>
+</body>
+</html>

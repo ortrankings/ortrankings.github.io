@@ -1,0 +1,4 @@
+{
+  "_comentario": "Datos reales: el ranking arranca vacio. Al cargar las claves de Supabase en assets/js/config.js este archivo deja de usarse.",
+  "rankings": []
+}

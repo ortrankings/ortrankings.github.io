@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Panel de administración — ORT Rankings</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0a0608">
+<link rel="icon" href="/assets/img/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+
+<!-- ============================ LOGIN ============================ -->
+<div class="container login-wrap" id="login" hidden>
+  <div class="login-card">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <img src="/assets/img/logo.png" alt="" style="width:42px;height:42px;border-radius:12px" onerror="this.style.display='none'">
+      <div>
+        <h1>Panel de admin</h1>
+        <p class="muted small" style="margin:2px 0 0">ORT Rankings</p>
+      </div>
+    </div>
+
+    <div id="loginAlerta"></div>
+
+    <form id="formLogin">
+      <div class="field">
+        <label for="email">Email</label>
+        <input class="input" type="email" id="email" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="pass">Contraseña</label>
+        <input class="input" type="password" id="pass" autocomplete="current-password" required>
+      </div>
+      <button class="btn btn--primary btn--block" type="submit" id="btnLogin">
+        <span id="iconCandado"></span> Entrar
+      </button>
+    </form>
+
+    <p class="muted small" style="margin-top:16px;text-align:center">
+      Creá tu usuario en Supabase → Authentication → Users → Add user.
+    </p>
+  </div>
+</div>
+
+<!-- ============================ PANEL ============================ -->
+<div id="panel" hidden>
+  <div id="nav"></div>
+
+  <main class="container admin">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">
+      <h1 style="font-size:23px">Panel de administración</h1>
+      <button class="btn btn--ghost btn--sm" id="btnSalir" style="margin-left:auto">
+        <span id="iconSalir"></span> Salir
+      </button>
+    </div>
+    <p class="muted small" id="quien" style="margin:0"></p>
+
+    <div class="tabs" id="tabs">
+      <button class="tab is-active" data-tab="pendientes">Pendientes <span class="count" id="cPend">0</span></button>
+      <button class="tab" data-tab="ranking">Ranking <span class="count" id="cRank">0</span></button>
+      <button class="tab" data-tab="rechazadas">Rechazadas <span class="count" id="cRech">0</span></button>
+    </div>
+
+    <p class="muted small" style="margin:0 0 14px">
+      Las bajas se piden por DM a @rankingsort. Para sacar a alguien, entrá a
+      <strong>Ranking → Editar</strong> y marcalo como oculto.
+    </p>
+
+    <div id="vista"></div>
+  </main>
+
+  <div id="footer"></div>
+</div>
+
+<div class="lightbox" id="lightbox"><img src="" alt=""></div>
+
+<script type="module" src="/assets/js/admin.js"></script>
+</body>
+</html>

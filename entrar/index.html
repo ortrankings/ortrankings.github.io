@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Postularme — ORT Rankings</title>
+<meta name="description" content="Postulate al ranking #1 no oficial de la comunidad ORT. Subí tus fotos, completá tus datos y esperá la verificación.">
+<meta name="theme-color" content="#0a0608">
+<link rel="icon" href="/assets/img/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+
+<div id="nav"></div>
+
+<main class="container form-page">
+  <a class="back" href="/"><span id="backIcon"></span> Volver al ranking</a>
+
+  <div class="eyebrow">Solicitud de ingreso</div>
+  <h1 style="font-size:clamp(25px,7vw,34px);margin-top:5px">POSTULATE AL RANKING</h1>
+  <p class="muted" style="margin:9px 0 0;font-size:14.5px">
+    Completá los 3 pasos. Verificamos que seas estudiante de ORT y, si entrás,
+    te asignamos tu puesto.
+  </p>
+
+  <div class="steps" id="steps">
+    <div class="step is-active"><div class="step__bar"></div><div class="step__label">01 Fotos</div></div>
+    <div class="step"><div class="step__bar"></div><div class="step__label">02 Datos</div></div>
+    <div class="step"><div class="step__bar"></div><div class="step__label">03 Extra</div></div>
+  </div>
+
+  <div id="alerta"></div>
+
+  <form id="form" novalidate>
+
+    <!-- ======================= PASO 1 — FOTOS ======================= -->
+    <fieldset class="fieldset is-active" data-paso="0" style="border:0;padding:0;margin:0">
+      <div class="uploads">
+        <label class="drop" id="dropFrente">
+          <input type="file" accept="image/*" id="fileFrente">
+          <span id="iconFrente"></span>
+          <b>Foto de frente <span style="color:var(--crimson)">*</span></b>
+          <span>Cara visible, sin lentes ni gorro</span>
+          <span class="drop__tag drop__tag--publica">SE PUBLICA</span>
+        </label>
+        <label class="drop" id="dropPerfil">
+          <input type="file" accept="image/*" id="filePerfil">
+          <span id="iconPerfil"></span>
+          <b>Foto de perfil <span style="color:var(--crimson)">*</span></b>
+          <span>De costado o media distancia</span>
+          <span class="drop__tag drop__tag--privada">NO SE PUBLICA</span>
+        </label>
+      </div>
+      <div id="errFotos"></div>
+
+      <div class="notice notice--warn" style="margin-top:14px">
+        <span id="iconAviso"></span>
+        <div>
+          <strong>La foto de perfil no aparece en el sitio.</strong> La usamos solo por dentro
+          para evaluar la solicitud y asignarte el puesto. La única que se ve en el ranking
+          y en tu perfil es la <strong>foto de frente</strong>.
+        </div>
+      </div>
+
+      <div class="notice notice--info" style="margin-top:10px">
+        <span id="iconInfo"></span>
+        <div>
+          Se aceptan JPG, PNG, WEBP o HEIC de hasta 15 MB. Las comprimimos automáticamente
+          antes de subirlas, así que no hace falta que las achiques.
+        </div>
+      </div>
+
+      <div class="form-nav">
+        <button type="button" class="btn btn--primary btn--block" data-siguiente>Continuar</button>
+      </div>
+    </fieldset>
+
+    <!-- ======================= PASO 2 — DATOS ======================= -->
+    <fieldset class="fieldset" data-paso="1" style="border:0;padding:0;margin:0">
+      <div class="field">
+        <label for="nombre">Nombre y apellido <span class="req">*</span></label>
+        <input class="input" type="text" id="nombre" name="nombre" placeholder="Juan Pérez"
+               autocomplete="name" maxlength="60" required>
+      </div>
+
+      <div class="field">
+        <label for="estudiante">N.º de estudiante <span class="req">*</span></label>
+        <input class="input" type="text" id="estudiante" name="estudiante" placeholder="Ej. 123456"
+               inputmode="numeric" maxlength="20" required>
+        <div class="hint">
+          Solo se usa para verificar que seas estudiante de ORT.
+          <strong>Queda oculto y nunca se publica.</strong>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="carrera">Carrera <span class="req">*</span></label>
+        <select class="select" id="carrera" name="carrera" style="width:100%" required>
+          <option value="">Elegí tu carrera…</option>
+        </select>
+      </div>
+
+      <div class="field" id="otraWrap" hidden>
+        <label for="otra">¿Cuál?</label>
+        <input class="input" type="text" id="otra" placeholder="Escribí tu carrera" maxlength="60">
+      </div>
+
+      <div class="form-nav">
+        <button type="button" class="btn btn--ghost" data-anterior>Atrás</button>
+        <button type="button" class="btn btn--primary" data-siguiente>Continuar</button>
+      </div>
+    </fieldset>
+
+    <!-- ======================= PASO 3 — EXTRA ======================= -->
+    <fieldset class="fieldset" data-paso="2" style="border:0;padding:0;margin:0">
+      <div class="field">
+        <label for="instagram">Usuario de Instagram</label>
+        <input class="input" type="text" id="instagram" placeholder="@tuusuario"
+               autocapitalize="off" autocorrect="off" maxlength="40">
+        <div class="hint">Se muestra en tu perfil para que te puedan seguir. Opcional.</div>
+      </div>
+
+      <div class="field">
+        <label for="dato">Algún dato a considerar</label>
+        <textarea class="textarea" id="dato" maxlength="280"
+                  placeholder="Un apodo, un logro, un dato de color… lo que quieras que aparezca en tu perfil."></textarea>
+        <div class="hint"><span id="cuenta">0</span>/280 · Opcional</div>
+      </div>
+
+      <label class="check" for="consent">
+        <input type="checkbox" id="consent">
+        <span>
+          Confirmo que soy estudiante de ORT, que las fotos son mías y que
+          <strong>autorizo su publicación</strong> en ORT Rankings. Entiendo que este sitio
+          <strong>no es oficial ni está afiliado a la Universidad ORT</strong>, y que puedo
+          pedir la baja de mi perfil cuando quiera.
+        </span>
+      </label>
+      <div id="errConsent"></div>
+
+      <div class="form-nav">
+        <button type="button" class="btn btn--ghost" data-anterior>Atrás</button>
+        <button type="submit" class="btn btn--primary" id="btnEnviar">Enviar solicitud</button>
+      </div>
+    </fieldset>
+
+  </form>
+
+  <!-- ========================== ÉXITO ========================== -->
+  <div class="done" id="exito" hidden>
+    <div class="done__icon" id="iconExito"></div>
+    <h2>¡Solicitud enviada!</h2>
+    <p>
+      Vamos a verificar tu número de estudiante y revisar tu solicitud.
+      Si entrás al ranking te avisamos por Instagram.
+    </p>
+    <div style="display:flex;gap:9px;justify-content:center;flex-wrap:wrap">
+      <a class="btn btn--primary" href="/">Ver el ranking</a>
+      <a class="btn btn--ghost" href="https://instagram.com/rankingsort" target="_blank" rel="noopener">Seguirnos en IG</a>
+    </div>
+  </div>
+</main>
+
+<div id="footer"></div>
+
+<script type="module" src="/assets/js/entrar.js"></script>
+</body>
+</html>
