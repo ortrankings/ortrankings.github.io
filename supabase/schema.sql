@@ -188,7 +188,7 @@ create policy "fotos admin borra" on storage.objects
 --  LISTO.
 --  Último paso, desde el panel de Supabase (no por SQL):
 --    Authentication → Users → "Add user" → tu email y contraseña.
---    Ese es el usuario con el que entrás a rankingsort.github.io/admin
+--    Ese es el usuario con el que entrás a ortrankings.github.io/admin
 --
 --  Y desactivá el registro abierto para que nadie más se cree un admin:
 --    Authentication → Providers → Email → "Allow new users to sign up" = OFF
