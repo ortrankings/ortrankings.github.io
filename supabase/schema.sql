@@ -16,11 +16,11 @@ create extension if not exists "pgcrypto";
 --  TABLAS
 -- ---------------------------------------------------------------------
 
--- Perfiles publicados en el ranking. El puesto NO se guarda: se calcula
--- siempre ordenando por puntaje (ver más abajo). Lo único que se guarda
--- es la foto del puesto anterior, para poder dibujar las flechas.
+-- Perfiles publicados en el ranking. El PUESTO LO ASIGNA EL ADMIN a mano:
+-- ni los votos ni el score lo mueven, esos son informativos.
 create table if not exists public.rankings (
   id                  uuid primary key default gen_random_uuid(),
+  puesto              integer,                  -- lo asigna el admin; null = sin puesto
   puesto_anterior     integer,                  -- null = ingreso nuevo (chapa "NUEVO")
   nombre              text        not null,
   tagline             text,
@@ -51,10 +51,9 @@ alter table public.rankings add column if not exists sc_facial_harmony integer n
 alter table public.rankings add column if not exists sc_status         integer not null default 0;
 alter table public.rankings add column if not exists sc_consistency    integer not null default 0;
 alter table public.rankings add column if not exists sc_momentum       integer not null default 0;
-alter table public.rankings drop column if exists puesto;
+alter table public.rankings add column if not exists puesto integer;
 alter table public.rankings drop column if exists foto_perfil;
-drop index if exists rankings_puesto_idx;
-create index if not exists rankings_puntaje_idx on public.rankings (puntaje desc);
+create index if not exists rankings_puesto_idx on public.rankings (puesto);
 
 -- Solicitudes de ingreso enviadas desde /entrar
 create table if not exists public.solicitudes (

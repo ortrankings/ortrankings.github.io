@@ -76,14 +76,21 @@ export function avatarFallback(nombre) {
 /** Título honorífico del puesto 1. */
 export const TITULO_BOSS = "TRUE ORT CHAD";
 
-/** Clase modificadora de la chapa según el puesto (siempre hay un puesto: se calcula por puntaje). */
+export const sinPuesto = (puesto) => puesto === null || puesto === undefined;
+
+/** Lo que va dentro de la chapa: el número, o "N/A" si el admin no le asignó puesto. */
+export const etiquetaPuesto = (puesto) => (sinPuesto(puesto) ? "N/A" : String(puesto));
+
+/** Clase modificadora de la chapa según el puesto. */
 export function claseBadge(puesto) {
+  if (sinPuesto(puesto)) return " rank-badge--sin";
   if (puesto === 1) return " rank-badge--boss";
   if (puesto <= 3) return ` rank-badge--${puesto}`;
   return "";
 }
 
 export function movimiento(puesto, anterior) {
+  if (sinPuesto(puesto)) return { tipo: "sin", valor: 0 };
   if (anterior === null || anterior === undefined) return { tipo: "new", valor: 0 };
   const delta = anterior - puesto;
   if (delta > 0) return { tipo: "up", valor: delta };
@@ -93,6 +100,7 @@ export function movimiento(puesto, anterior) {
 
 export function pillMovimiento(puesto, anterior) {
   const m = movimiento(puesto, anterior);
+  if (m.tipo === "sin") return `<span class="pill pill--sin">SIN PUESTO</span>`;
   if (m.tipo === "new") return `<span class="pill pill--new">NUEVO</span>`;
   if (m.tipo === "up") return `<span class="pill pill--up">${ICON.arriba}+${m.valor}</span>`;
   if (m.tipo === "down") return `<span class="pill pill--down">${ICON.abajo}-${m.valor}</span>`;

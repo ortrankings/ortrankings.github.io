@@ -5,7 +5,7 @@
 import { listRankings } from "./db.js";
 import {
   $, ICON, esc, montarNav, montarFooter, pillMovimiento, avatarFallback, movimiento,
-  claseBadge, TITULO_BOSS,
+  claseBadge, TITULO_BOSS, sinPuesto, etiquetaPuesto,
 } from "./ui.js";
 
 montarNav("rankings");
@@ -30,7 +30,7 @@ function tarjeta(p) {
   const subtitulo = p.etiqueta_principal || (esBoss ? TITULO_BOSS : (p.tagline || p.carrera || "—"));
   return `
     <a class="rank-card${esBoss ? " rank-card--boss" : ""}" href="/perfil/?id=${encodeURIComponent(p.id)}">
-      <div class="rank-badge${claseBadge(p.puesto)}">${p.puesto}</div>
+      <div class="rank-badge${claseBadge(p.puesto)}">${etiquetaPuesto(p.puesto)}</div>
       <img class="rank-avatar" src="${esc(p.foto_frente || "")}" alt=""
            loading="lazy" onerror="this.src='${avatarFallback(p.nombre)}'">
       <div class="rank-body">
@@ -70,15 +70,17 @@ function slotVacante(puesto) {
     </div>`;
 }
 
-/** Mezcla los perfiles reales (ya ordenados por puntaje) con los casilleros vacíos que falten. */
+/** Cada perfil va en el casillero de su puesto; los que no tienen, al final. */
 function conCasilleros(filas) {
-  const tope = Math.max(SLOTS, filas.length);
+  const porNumero = new Map(filas.filter((p) => !sinPuesto(p.puesto)).map((p) => [p.puesto, p]));
+  const sueltos = filas.filter((p) => sinPuesto(p.puesto));
+  const tope = Math.max(SLOTS, ...porNumero.keys(), 0);
+
   const html = [];
   for (let i = 1; i <= tope; i++) {
-    const p = filas[i - 1];
-    html.push(p ? tarjeta(p) : slotVacante(i));
+    html.push(porNumero.has(i) ? tarjeta(porNumero.get(i)) : slotVacante(i));
   }
-  return html.join("");
+  return html.join("") + sueltos.map(tarjeta).join("");
 }
 
 /** Pantalla de lanzamiento: se muestra mientras el ranking está vacío. */
@@ -126,7 +128,12 @@ function pintar() {
   } else if (orden === "nuevos") {
     filas = filas.filter((p) => p.puesto_anterior === null || p.puesto_anterior === undefined);
   } else {
-    filas = [...filas].sort((a, b) => a.puesto - b.puesto);
+    filas = [...filas].sort((a, b) => {
+      if (sinPuesto(a.puesto) && sinPuesto(b.puesto)) return a.nombre.localeCompare(b.nombre, "es");
+      if (sinPuesto(a.puesto)) return 1;
+      if (sinPuesto(b.puesto)) return -1;
+      return a.puesto - b.puesto;
+    });
   }
 
   if (!filas.length) {

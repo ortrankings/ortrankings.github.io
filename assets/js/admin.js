@@ -5,12 +5,12 @@
 import {
   DEMO, sesion, login, logout,
   listSolicitudes, aceptarSolicitud, rechazarSolicitud, reabrirSolicitud, borrarSolicitud,
-  listRankingsAdmin, actualizarPerfil, borrarPerfil, cerrarEdicion,
+  listRankingsAdmin, actualizarPerfil, borrarPerfil, publicarOrden,
   intercambiarFotos, reemplazarFoto, listCopes, borrarCope,
 } from "./db.js";
 import {
   $, $$, ICON, esc, montarNav, montarFooter, avatarFallback, igLimpio,
-  pillMovimiento, toast, CATEGORIAS, totalScore,
+  pillMovimiento, toast, CATEGORIAS, totalScore, etiquetaPuesto, sinPuesto,
 } from "./ui.js";
 
 const vista = $("#vista");
@@ -124,7 +124,7 @@ function cargarTab() {
 
 /* -------------------------------------------------------- solicitudes */
 
-function tarjetaSolicitud(s, esPendiente) {
+function tarjetaSolicitud(s, esPendiente, puestoSugerido) {
   const ig = igLimpio(s.instagram);
   return `
     <article class="sol-card" data-id="${s.id}">
@@ -152,6 +152,8 @@ function tarjetaSolicitud(s, esPendiente) {
       ${esPendiente ? `
       <div class="sol-actions">
         <input class="input input--wide" placeholder="Tagline (ej. Genetic Apex)" data-tagline maxlength="60">
+        <input class="input" type="number" min="1" placeholder="Puesto" data-puesto
+               value="${puestoSugerido}" aria-label="Puesto (vacio = sin asignar)">
         <button class="btn btn--ok btn--sm" data-aceptar>${ICON.check} Aceptar</button>
         <button class="btn btn--danger btn--sm" data-rechazar>Rechazar</button>
       </div>` : `
@@ -165,7 +167,9 @@ function tarjetaSolicitud(s, esPendiente) {
 async function verSolicitudes(estado) {
   cargando();
   try {
-    const sols = await listSolicitudes(estado);
+    const [sols, rank] = await Promise.all([listSolicitudes(estado), listRankingsAdmin()]);
+    const ocupados = rank.map((r) => r.puesto).filter((n) => Number.isInteger(n));
+    const puestoSugerido = ocupados.length ? Math.max(...ocupados) + 1 : 1;
 
     if (!sols.length) {
       vista.innerHTML = `
@@ -177,7 +181,7 @@ async function verSolicitudes(estado) {
     }
 
     vista.innerHTML = sols
-      .map((s) => tarjetaSolicitud(s, estado === "pendiente"))
+      .map((s) => tarjetaSolicitud(s, estado === "pendiente", puestoSugerido))
       .join("");
 
     vista.querySelectorAll("[data-aceptar]").forEach((btn) =>
@@ -185,10 +189,16 @@ async function verSolicitudes(estado) {
         const card = btn.closest(".sol-card");
         const sol = sols.find((x) => x.id === card.dataset.id);
         const tagline = card.querySelector("[data-tagline]").value.trim();
+        const crudo = card.querySelector("[data-puesto]").value.trim();
+        const puesto = crudo === "" ? null : Number(crudo);
+        if (puesto !== null && (!Number.isInteger(puesto) || puesto < 1)) {
+          toast("Puesto invalido: un numero entero, o vacio para no asignar", "err");
+          return;
+        }
         btn.disabled = true;
         try {
-          await aceptarSolicitud(sol, { tagline });
-          toast(`${sol.nombre} entró al ranking`);
+          await aceptarSolicitud(sol, { puesto, tagline });
+          toast(puesto === null ? `${sol.nombre} entro sin puesto` : `${sol.nombre} entro al puesto #${puesto}`);
           card.remove();
           refrescarContadores();
         } catch (err) { toast(err.message, "err"); btn.disabled = false; }
@@ -241,12 +251,13 @@ async function verSolicitudes(estado) {
    ese orden y se puede editar cada perfil o cerrar la edición actual. */
 
 let ranking = [];
+let rankingOriginal = [];
 
-function filaRanking(p) {
+function filaRanking(p, i) {
   const oculto = !p.activo;
   return `
-    <div class="order-row${oculto ? " order-row--oculto" : ""}" data-id="${p.id}">
-      <span class="pos">${p.puesto ?? "—"}</span>
+    <div class="order-row${oculto ? " order-row--oculto" : ""}" data-id="${p.id}" data-idx="${i}">
+      <span class="pos">${etiquetaPuesto(p.puesto)}</span>
       <img src="${esc(p.foto_frente || "")}" alt="" onerror="this.src='${avatarFallback(p.nombre)}'">
       <div class="nm">
         ${esc(p.nombre)}${oculto ? ' <span class="pill pill--flat">oculto</span>' : ""}
@@ -254,6 +265,10 @@ function filaRanking(p) {
         <small>${esc(p.tagline || p.carrera || "—")} · ${p.votos || 0} votos · ${p.puntaje || 0} pts</small>
       </div>
       ${!oculto ? pillMovimiento(p.puesto, p.puesto_anterior) : ""}
+      <div class="order-arrows">
+        <button type="button" data-sube aria-label="Subir">${ICON.flechaArriba}</button>
+        <button type="button" data-baja aria-label="Bajar">${ICON.flechaAbajo}</button>
+      </div>
       <button class="btn btn--ghost btn--sm" data-fotos title="Cambiar la foto que se ve">Foto</button>
       <button class="btn btn--ghost btn--sm" data-score title="Cargar el Influence Breakdown">
         Score ${totalScore(p) || "—"}
@@ -267,14 +282,15 @@ function filaRanking(p) {
 function pintarRanking() {
   vista.innerHTML = `
     <div class="notice notice--info" style="margin-bottom:13px">${ICON.info}
-      <div>El orden lo pone solo el puntaje (cada voto +20, cada cope -20): no se arrastra a mano.
-      Cuando quieras congelar las flechas de movimiento para la próxima edición, usá "Cerrar edición".</div>
+      <div>El puesto lo asignás vos. Movés con las flechitas y después
+      <strong>Publicar orden</strong>. Los votos y el Score son informativos: no mueven a nadie.</div>
     </div>
-    <div class="sticky-save" style="position:static;margin-bottom:13px">
-      <p>El puesto se recalcula solo con cada voto y cada cope.</p>
-      <button class="btn btn--primary btn--sm" id="btnCerrarEdicion">Cerrar edición</button>
-    </div>
-    <div id="filas">${ranking.map(filaRanking).join("")}</div>`;
+    <div id="filas">${ranking.map(filaRanking).join("")}</div>
+    <div class="sticky-save" ${hayCambios() ? "" : 'style="display:none"'}>
+      <p>Hay cambios sin publicar.</p>
+      <button class="btn btn--ghost btn--sm" id="btnDeshacer">Deshacer</button>
+      <button class="btn btn--primary btn--sm" id="btnPublicar">Publicar orden</button>
+    </div>`;
 
   conectarFilas();
 }
@@ -309,21 +325,47 @@ function conectarFilas() {
     })
   );
 
-  $("#btnCerrarEdicion")?.addEventListener("click", async (e) => {
-    const btn = e.currentTarget;
-    if (!confirm("Esto guarda el puesto actual de cada uno como punto de comparación para la próxima edición.\n\n¿Cerrar la edición ahora?")) return;
-    btn.disabled = true;
-    btn.textContent = "Cerrando…";
-    try {
-      await cerrarEdicion();
-      toast("Edición cerrada. Las próximas flechas comparan desde acá.");
-      await verRanking();
-    } catch (err) {
-      toast(err.message, "err");
-      btn.disabled = false;
-      btn.textContent = "Cerrar edición";
-    }
-  });
+  cont.querySelectorAll("[data-sube]").forEach((b) =>
+    b.addEventListener("click", () => mover(Number(b.closest(".order-row").dataset.idx), -1))
+  );
+  cont.querySelectorAll("[data-baja]").forEach((b) =>
+    b.addEventListener("click", () => mover(Number(b.closest(".order-row").dataset.idx), 1))
+  );
+
+  $("#btnDeshacer")?.addEventListener("click", () => { ranking = [...rankingOriginal]; pintarRanking(); });
+  $("#btnPublicar")?.addEventListener("click", publicar);
+}
+
+/** Mueve una fila y renumera: el puesto pasa a ser la posición en la lista. */
+function mover(idx, delta) {
+  const destino = idx + delta;
+  if (destino < 0 || destino >= ranking.length) return;
+  [ranking[idx], ranking[destino]] = [ranking[destino], ranking[idx]];
+  ranking = ranking.map((p, i) => ({ ...p, puesto: p.activo ? i + 1 : null }));
+  pintarRanking();
+}
+
+const hayCambios = () => ranking.some((p, i) => rankingOriginal[i]?.id !== p.id);
+
+async function publicar() {
+  const btn = $("#btnPublicar");
+  btn.disabled = true;
+  btn.textContent = "Publicando…";
+  try {
+    const filas = ranking
+      .filter((p) => p.activo)
+      .map((p, i) => {
+        const original = rankingOriginal.find((o) => o.id === p.id);
+        return { id: p.id, puestoViejo: original?.puesto ?? null, puestoNuevo: i + 1 };
+      });
+    await publicarOrden(filas);
+    toast("Orden publicado");
+    await verRanking();
+  } catch (err) {
+    toast(err.message, "err");
+    btn.disabled = false;
+    btn.textContent = "Publicar orden";
+  }
 }
 
 /**
@@ -498,7 +540,8 @@ async function editar(id) {
 async function verRanking() {
   cargando();
   try {
-    ranking = await listRankingsAdmin();
+    rankingOriginal = await listRankingsAdmin();
+    ranking = [...rankingOriginal];
     if (!ranking.length) {
       vista.innerHTML = `
         <div class="empty">${ICON.vacio}

@@ -5,10 +5,10 @@
    leyendo /assets/data/demo.json (solo lectura, votos en localStorage).
    Así podés ver el diseño andando antes de crear el proyecto Supabase.
 
-   EL PUESTO NUNCA SE GUARDA: se calcula siempre ordenando por `puntaje`
-   (cada voto suma, cada cope resta). Lo único que se guarda es
-   `puesto_anterior`, una foto del puesto la última vez que el admin
-   "cerró la edición" — de ahí salen las flechas verde/roja.
+   EL PUESTO LO ASIGNA EL ADMIN a mano. Ni los votos ni el Influence
+   Breakdown lo mueven: esos son informativos. `puesto_anterior` guarda el
+   puesto que tenía antes del último reordenamiento, y de ahí salen las
+   flechas verde/roja.
    ===================================================================== */
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY, configurado } from "./config.js";
@@ -60,12 +60,15 @@ function marcarCope(perfilId) {
   localStorage.setItem("ort_copes", JSON.stringify(v));
 }
 
-/** Ordena por puntaje (cada voto +20, cada cope -20) y le pone el número de puesto. */
-function conPuesto(filas) {
-  const ordenado = [...filas].sort(
-    (a, b) => (b.puntaje || 0) - (a.puntaje || 0) || a.nombre.localeCompare(b.nombre, "es")
-  );
-  return ordenado.map((r, i) => ({ ...r, puesto: i + 1 }));
+/** Ordena por el puesto que asignó el admin. Los que no tienen, al final. */
+function porPuesto(filas) {
+  const sin = (p) => p === null || p === undefined;
+  return [...filas].sort((a, b) => {
+    if (sin(a.puesto) && sin(b.puesto)) return a.nombre.localeCompare(b.nombre, "es");
+    if (sin(a.puesto)) return 1;
+    if (sin(b.puesto)) return -1;
+    return a.puesto - b.puesto;
+  });
 }
 
 /** Llama a la Edge Function "votar" — único lugar donde se crean votos y copes. */
@@ -134,15 +137,15 @@ export async function listRankings() {
         foto_frente: r.foto_frente || demoFoto(r.nombre),
       };
     });
-    return conPuesto(filas);
+    return porPuesto(filas);
   }
   const c = await sb();
   const { data, error } = await c
     .from("rankings")
-    .select("id,puesto_anterior,nombre,tagline,etiqueta_principal,etiquetas,carrera,instagram,dato,foto_frente,votos,puntaje,sc_aesthetics,sc_frame,sc_facial_harmony,sc_status,sc_consistency,sc_momentum")
+    .select("id,puesto,puesto_anterior,nombre,tagline,etiqueta_principal,etiquetas,carrera,instagram,foto_frente,votos,puntaje,sc_aesthetics,sc_frame,sc_facial_harmony,sc_status,sc_consistency,sc_momentum")
     .eq("activo", true);
   boom(error);
-  return conPuesto(data || []);
+  return porPuesto(data || []);
 }
 
 export async function getPerfil(id) {
@@ -268,10 +271,11 @@ export async function contarSolicitudes() {
 }
 
 /** Acepta una solicitud: crea el perfil con puntaje 0 y marca la solicitud. */
-export async function aceptarSolicitud(sol, { tagline } = {}) {
+export async function aceptarSolicitud(sol, { puesto, tagline } = {}) {
   const c = await sb();
   const { error: e1 } = await c.from("rankings").insert({
-    puesto_anterior: null, // null = perfil nuevo → se muestra la chapa NUEVO
+    puesto: puesto ?? null,          // lo elige el admin al aceptar
+    puesto_anterior: null,           // null = perfil nuevo → chapa NUEVO
     nombre: sol.nombre,
     tagline: tagline || null,
     carrera: sol.carrera,
@@ -316,12 +320,7 @@ export async function listRankingsAdmin() {
   const { data, error } = await c.from("rankings").select("*");
   boom(error);
   const todos = data || [];
-  const activos = conPuesto(todos.filter((r) => r.activo));
-  const ocultos = todos
-    .filter((r) => !r.activo)
-    .sort((a, b) => (b.puntaje || 0) - (a.puntaje || 0))
-    .map((r) => ({ ...r, puesto: null }));
-  return [...activos, ...ocultos];
+  return [...porPuesto(todos.filter((r) => r.activo)), ...porPuesto(todos.filter((r) => !r.activo))];
 }
 
 export async function actualizarPerfil(id, campos) {
@@ -366,16 +365,18 @@ export async function borrarPerfil(id) {
 }
 
 /**
- * "Cierra la edición": guarda el puesto actual (calculado por puntaje) de
- * cada activo como `puesto_anterior`, para que la próxima vez las flechas
- * verde/roja comparen contra este momento. No mueve a nadie ni toca puntajes.
+ * Guarda el orden nuevo. El puesto que tenía cada uno pasa a `puesto_anterior`,
+ * y de esa comparación salen las flechas verde/roja.
+ * `filas` = [{ id, puestoViejo, puestoNuevo }]
  */
-export async function cerrarEdicion() {
-  const activos = await listRankings();
+export async function publicarOrden(filas) {
   const c = await sb();
   const errores = [];
-  for (const r of activos) {
-    const { error } = await c.from("rankings").update({ puesto_anterior: r.puesto }).eq("id", r.id);
+  for (const f of filas) {
+    const { error } = await c
+      .from("rankings")
+      .update({ puesto: f.puestoNuevo, puesto_anterior: f.puestoViejo })
+      .eq("id", f.id);
     if (error) errores.push(error.message);
   }
   if (errores.length) throw new Error(errores[0]);

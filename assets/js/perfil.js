@@ -7,6 +7,7 @@ import { SITE } from "./config.js";
 import {
   $, ICON, esc, montarNav, montarFooter, pillMovimiento, avatarFallback,
   igLimpio, toast, TITULO_BOSS, filaEtiquetas, influenceBreakdown, obtenerTurnstileToken,
+  sinPuesto, etiquetaPuesto,
 } from "./ui.js";
 
 montarNav("rankings");
@@ -55,10 +56,16 @@ document.addEventListener("keydown", (e) => {
 /* -------------------------------------------------------------- render */
 
 function render(p, vecinos) {
-  document.title = `${p.nombre} · #${p.puesto} — ORT Rankings`;
+  document.title = sinPuesto(p.puesto)
+    ? `${p.nombre} — ORT Rankings`
+    : `${p.nombre} · #${p.puesto} — ORT Rankings`;
   const esBoss = p.puesto === 1;
-  const medalla = esBoss ? " profile__rank--boss" : (p.puesto <= 3 ? ` profile__rank--${p.puesto}` : "");
-  const textoPuesto = esBoss ? TITULO_BOSS : `PUESTO #${p.puesto}`;
+  const medalla = esBoss
+    ? " profile__rank--boss"
+    : (!sinPuesto(p.puesto) && p.puesto <= 3 ? ` profile__rank--${p.puesto}` : "");
+  const textoPuesto = sinPuesto(p.puesto)
+    ? "PUESTO NO ASIGNADO"
+    : (esBoss ? TITULO_BOSS : `PUESTO #${p.puesto}`);
   const foto = p.foto_frente || avatarFallback(p.nombre);
   const ig = igLimpio(p.instagram);
   const votado = yaVoto(p.id);
@@ -66,7 +73,7 @@ function render(p, vecinos) {
 
   cont.innerHTML = `
     <section class="profile__hero${esBoss ? " is-champion" : ""}">
-      <span class="profile__watermark" aria-hidden="true">${p.puesto}</span>
+      <span class="profile__watermark" aria-hidden="true">${etiquetaPuesto(p.puesto)}</span>
       <img class="profile__photo" src="${esc(foto)}" alt="${esc(p.nombre)}"
            id="fotoGrande" onerror="this.src='${avatarFallback(p.nombre)}'">
       <div class="profile__overlay">
@@ -105,12 +112,6 @@ function render(p, vecinos) {
 
       ${influenceBreakdown(p)}
 
-      ${p.dato ? `
-      <div class="card card--full">
-        <h3>Dato a considerar</h3>
-        <p>${esc(p.dato)}</p>
-      </div>` : ""}
-
       <div class="card">
         <h3>Carrera</h3>
         <p>${esc(p.carrera || "No especificada")}</p>
@@ -135,12 +136,12 @@ function render(p, vecinos) {
       ${vecinos.prev
         ? `<a class="vecino" href="/perfil/?id=${encodeURIComponent(vecinos.prev.id)}">
              <span>${ICON.atras}</span>
-             <div><small>Puesto #${vecinos.prev.puesto}</small>${esc(vecinos.prev.nombre)}</div>
+             <div><small>${sinPuesto(vecinos.prev.puesto) ? 'Sin puesto' : 'Puesto #' + vecinos.prev.puesto}</small>${esc(vecinos.prev.nombre)}</div>
            </a>`
         : `<span></span>`}
       ${vecinos.next
         ? `<a class="vecino vecino--der" href="/perfil/?id=${encodeURIComponent(vecinos.next.id)}">
-             <div><small>Puesto #${vecinos.next.puesto}</small>${esc(vecinos.next.nombre)}</div>
+             <div><small>${sinPuesto(vecinos.next.puesto) ? 'Sin puesto' : 'Puesto #' + vecinos.next.puesto}</small>${esc(vecinos.next.nombre)}</div>
              <span>${ICON.chevron}</span>
            </a>`
         : `<span></span>`}
