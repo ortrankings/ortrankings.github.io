@@ -97,7 +97,7 @@ function render(p, vecinos) {
           ${votado ? ICON.check : ICON.voto} ${votado ? "Ya votaste" : "Votar"}
         </button>
         <button class="btn btn--ghost btn--sm" id="btnCope" ${copeado ? "disabled" : ""}>
-          ${copeado ? "Ya le pusiste cope" : "cope"}
+          ${copeado ? "Ya le pusiste COPE" : "COPE"}
         </button>
       </div>
 
@@ -182,7 +182,7 @@ function render(p, vecinos) {
     caja.innerHTML = `
       <div class="notice notice--warn">
         <div style="width:100%">
-          <strong>¿Por qué le ponés cope?</strong>
+          <strong>¿Por qué le ponés COPE?</strong>
           <p class="small muted" style="margin:4px 0 10px">
             Contanos el motivo. Queda registrado y lo revisamos nosotros.
           </p>
@@ -191,7 +191,7 @@ function render(p, vecinos) {
           <div id="errCope"></div>
           <div class="form-nav" style="margin-top:10px">
             <button class="btn btn--ghost btn--sm" id="btnCancelarCope">Cancelar</button>
-            <button class="btn btn--danger btn--sm" id="btnEnviarCope">Enviar cope</button>
+            <button class="btn btn--danger btn--sm" id="btnEnviarCope">Enviar COPE</button>
           </div>
         </div>
       </div>`;
@@ -215,11 +215,11 @@ function render(p, vecinos) {
         caja.innerHTML = "";
         const btnCope = $("#btnCope");
         btnCope.disabled = true;
-        btnCope.textContent = "Ya le pusiste cope";
-        toast("Cope enviado");
+        btnCope.textContent = "Ya le pusiste COPE";
+        toast("COPE enviado");
       } catch (err) {
         btn.disabled = false;
-        btn.textContent = "Enviar cope";
+        btn.textContent = "Enviar COPE";
         toast(err.message, "err");
       }
     });

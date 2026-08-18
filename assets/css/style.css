@@ -840,7 +840,7 @@ h1, h2, h3 { margin: 0; line-height: 1.15; letter-spacing: -0.02em; font-weight:
 .vote-count { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 .vote-box .muted { font-size: 12px; }
 .vote-box > div:first-child { margin-right: auto; }
-#btnCope { text-transform: lowercase; opacity: 0.75; }
+#btnCope { letter-spacing: 0.06em; opacity: 0.8; }
 #btnCope:hover { opacity: 1; }
 
 .ig-link {
