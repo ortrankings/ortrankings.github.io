@@ -277,7 +277,8 @@ export async function aceptarSolicitud(sol, { tagline } = {}) {
     carrera: sol.carrera,
     instagram: sol.instagram,
     dato: sol.dato,
-    foto_frente: sol.foto_frente,   // la de perfil queda solo en `solicitudes`
+    foto_frente: sol.foto_frente,   // la que se publica
+    foto_alt: sol.foto_perfil,      // guardada por si las subieron al revés
     activo: true,
   });
   boom(e1);
@@ -326,6 +327,35 @@ export async function listRankingsAdmin() {
 export async function actualizarPerfil(id, campos) {
   const c = await sb();
   const { error } = await c.from("rankings").update(campos).eq("id", id);
+  boom(error);
+}
+
+/** Intercambia la foto pública por la otra que quedó guardada. */
+export async function intercambiarFotos(id) {
+  const c = await sb();
+  const { data, error } = await c
+    .from("rankings")
+    .select("foto_frente,foto_alt")
+    .eq("id", id)
+    .maybeSingle();
+  boom(error);
+  if (!data?.foto_alt) throw new Error("Este perfil no tiene una segunda foto guardada");
+  const { error: e2 } = await c
+    .from("rankings")
+    .update({ foto_frente: data.foto_alt, foto_alt: data.foto_frente })
+    .eq("id", id);
+  boom(e2);
+}
+
+/** Reemplaza la foto pública por una nueva, y guarda la anterior como alternativa. */
+export async function reemplazarFoto(id, file) {
+  const url = await subirFoto(file, "frente");
+  const c = await sb();
+  const { data } = await c.from("rankings").select("foto_frente").eq("id", id).maybeSingle();
+  const { error } = await c
+    .from("rankings")
+    .update({ foto_frente: url, foto_alt: data?.foto_frente || null })
+    .eq("id", id);
   boom(error);
 }
 

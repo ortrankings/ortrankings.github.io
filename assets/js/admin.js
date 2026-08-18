@@ -6,7 +6,7 @@ import {
   DEMO, sesion, login, logout,
   listSolicitudes, aceptarSolicitud, rechazarSolicitud, reabrirSolicitud, borrarSolicitud,
   listRankingsAdmin, actualizarPerfil, borrarPerfil, cerrarEdicion,
-  listCopes, borrarCope,
+  intercambiarFotos, reemplazarFoto, listCopes, borrarCope,
 } from "./db.js";
 import {
   $, $$, ICON, esc, montarNav, montarFooter, avatarFallback, igLimpio,
@@ -254,6 +254,7 @@ function filaRanking(p) {
         <small>${esc(p.tagline || p.carrera || "—")} · ${p.votos || 0} votos · ${p.puntaje || 0} pts</small>
       </div>
       ${!oculto ? pillMovimiento(p.puesto, p.puesto_anterior) : ""}
+      <button class="btn btn--ghost btn--sm" data-fotos title="Cambiar la foto que se ve">Foto</button>
       <button class="btn btn--ghost btn--sm" data-editar>Editar</button>
       <button class="btn btn--danger btn--sm" data-borrar-perfil
               aria-label="Borrar del ranking" title="Borrar del ranking">${ICON.papelera}</button>
@@ -281,6 +282,10 @@ function conectarFilas() {
 
   cont.querySelectorAll("[data-editar]").forEach((b) =>
     b.addEventListener("click", () => editar(b.closest(".order-row").dataset.id))
+  );
+
+  cont.querySelectorAll("[data-fotos]").forEach((b) =>
+    b.addEventListener("click", () => panelFotos(b.closest(".order-row").dataset.id))
   );
 
   cont.querySelectorAll("[data-borrar-perfil]").forEach((b) =>
@@ -311,6 +316,71 @@ function conectarFilas() {
       btn.disabled = false;
       btn.textContent = "Cerrar edición";
     }
+  });
+}
+
+/**
+ * Panel para arreglar la foto de un perfil: si la persona subió las dos al
+ * revés, se intercambian; si las dos están mal, se sube una nueva.
+ */
+function panelFotos(id) {
+  const p = ranking.find((x) => x.id === id);
+  if (!p) return;
+
+  const fila = document.querySelector(`.order-row[data-id="${id}"]`);
+  const previo = fila.nextElementSibling;
+  if (previo?.classList.contains("panel-fotos")) { previo.remove(); return; }
+
+  const caja = document.createElement("div");
+  caja.className = "panel-fotos";
+  caja.innerHTML = `
+    <div class="panel-fotos__grid">
+      <div class="panel-fotos__slot">
+        <span class="drop__tag drop__tag--publica">SE PUBLICA</span>
+        <img src="${esc(p.foto_frente || "")}" alt="Foto publicada" data-zoom
+             onerror="this.src='${avatarFallback(p.nombre)}'">
+      </div>
+      <div class="panel-fotos__slot">
+        <span class="drop__tag drop__tag--privada">GUARDADA</span>
+        ${p.foto_alt
+          ? `<img src="${esc(p.foto_alt)}" alt="Foto alternativa" data-zoom
+                  onerror="this.src='${avatarFallback(p.nombre)}'">`
+          : `<div class="panel-fotos__vacio">Sin segunda foto</div>`}
+      </div>
+    </div>
+    <div class="sol-actions">
+      <button class="btn btn--ok btn--sm" data-swap ${p.foto_alt ? "" : "disabled"}>
+        Intercambiar
+      </button>
+      <label class="btn btn--ghost btn--sm" style="cursor:pointer">
+        Subir otra
+        <input type="file" accept="image/*" data-subir hidden>
+      </label>
+      <button class="btn btn--ghost btn--sm" data-cerrar>Cerrar</button>
+    </div>`;
+  fila.after(caja);
+
+  caja.querySelector("[data-cerrar]").addEventListener("click", () => caja.remove());
+
+  caja.querySelector("[data-swap]")?.addEventListener("click", async (e) => {
+    e.currentTarget.disabled = true;
+    try {
+      await intercambiarFotos(id);
+      toast("Fotos intercambiadas");
+      await verRanking();
+    } catch (err) { toast(err.message, "err"); e.currentTarget.disabled = false; }
+  });
+
+  caja.querySelector("[data-subir]").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast("Ese archivo no es una imagen", "err"); return; }
+    toast("Subiendo…");
+    try {
+      await reemplazarFoto(id, file);
+      toast("Foto reemplazada");
+      await verRanking();
+    } catch (err) { toast(err.message, "err"); }
   });
 }
 

@@ -29,7 +29,8 @@ create table if not exists public.rankings (
   carrera             text,
   instagram           text,
   dato                text,
-  foto_frente         text,
+  foto_frente         text,                     -- la que se publica
+  foto_alt            text,                     -- la otra, guardada para poder intercambiarlas
   votos               integer     not null default 0,
   puntaje             integer     not null default 0,
   activo              boolean     not null default true,
@@ -40,6 +41,7 @@ create table if not exists public.rankings (
 alter table public.rankings add column if not exists puntaje integer not null default 0;
 alter table public.rankings add column if not exists etiqueta_principal text;
 alter table public.rankings add column if not exists etiquetas text[] not null default '{}';
+alter table public.rankings add column if not exists foto_alt text;
 alter table public.rankings drop column if exists puesto;
 alter table public.rankings drop column if exists foto_perfil;
 drop index if exists rankings_puesto_idx;
