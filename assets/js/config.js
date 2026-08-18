@@ -23,7 +23,7 @@ export const SUPABASE_ANON_KEY = "sb_publishable_VvAiIo3Ktkd6Gzo6vbBSSA_7uEzZidd
    3. Copiá la "Site Key" (empieza con 0x...) y pegala acá abajo.
       La "Secret Key" NO va acá: esa se carga en el servidor, ver README.
    ----------------------------------------------------------------------- */
-export const TURNSTILE_SITE_KEY = "";
+export const TURNSTILE_SITE_KEY = "0x4AAAAAAEUOqzePeq8HmOCs";
 
 /* --------------------------------------------------------------------- */
 
