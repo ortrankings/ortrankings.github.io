@@ -6,7 +6,7 @@ import { listRankings, votar, yaVoto, enviarCope, yaCope } from "./db.js";
 import { SITE } from "./config.js";
 import {
   $, ICON, esc, montarNav, montarFooter, pillMovimiento, avatarFallback,
-  igLimpio, toast, TITULO_BOSS, filaEtiquetas, obtenerTurnstileToken,
+  igLimpio, toast, TITULO_BOSS, filaEtiquetas, influenceBreakdown, obtenerTurnstileToken,
 } from "./ui.js";
 
 montarNav("rankings");
@@ -78,7 +78,7 @@ function render(p, vecinos) {
           ${p.etiqueta_principal ? `<span class="profile__principal">${esc(p.etiqueta_principal)}</span>` : ""}
         </h1>
         ${p.tagline ? `<p class="profile__tag">${esc(p.tagline)}</p>` : ""}
-        ${filaEtiquetas(p.etiquetas, p.puntaje)}
+        ${filaEtiquetas(p.etiquetas, p)}
         <div class="profile__chips">
           ${pillMovimiento(p.puesto, p.puesto_anterior)}
           ${p.carrera ? `<span class="chip">${esc(p.carrera)}</span>` : ""}
@@ -102,6 +102,8 @@ function render(p, vecinos) {
       </div>
 
       <div class="card--full" id="cajaCope"></div>
+
+      ${influenceBreakdown(p)}
 
       ${p.dato ? `
       <div class="card card--full">

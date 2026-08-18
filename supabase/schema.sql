@@ -42,6 +42,15 @@ alter table public.rankings add column if not exists puntaje integer not null de
 alter table public.rankings add column if not exists etiqueta_principal text;
 alter table public.rankings add column if not exists etiquetas text[] not null default '{}';
 alter table public.rankings add column if not exists foto_alt text;
+
+-- Influence Breakdown: puntaje MANUAL que carga el admin, 6 categorías que suman
+-- sobre 100. Es informativo: NO define el puesto (ese sale de los votos).
+alter table public.rankings add column if not exists sc_aesthetics     integer not null default 0;
+alter table public.rankings add column if not exists sc_frame          integer not null default 0;
+alter table public.rankings add column if not exists sc_facial_harmony integer not null default 0;
+alter table public.rankings add column if not exists sc_status         integer not null default 0;
+alter table public.rankings add column if not exists sc_consistency    integer not null default 0;
+alter table public.rankings add column if not exists sc_momentum       integer not null default 0;
 alter table public.rankings drop column if exists puesto;
 alter table public.rankings drop column if exists foto_perfil;
 drop index if exists rankings_puesto_idx;

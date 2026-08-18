@@ -10,7 +10,7 @@ import {
 } from "./db.js";
 import {
   $, $$, ICON, esc, montarNav, montarFooter, avatarFallback, igLimpio,
-  pillMovimiento, toast,
+  pillMovimiento, toast, CATEGORIAS, totalScore,
 } from "./ui.js";
 
 const vista = $("#vista");
@@ -255,6 +255,9 @@ function filaRanking(p) {
       </div>
       ${!oculto ? pillMovimiento(p.puesto, p.puesto_anterior) : ""}
       <button class="btn btn--ghost btn--sm" data-fotos title="Cambiar la foto que se ve">Foto</button>
+      <button class="btn btn--ghost btn--sm" data-score title="Cargar el Influence Breakdown">
+        Score ${totalScore(p) || "—"}
+      </button>
       <button class="btn btn--ghost btn--sm" data-editar>Editar</button>
       <button class="btn btn--danger btn--sm" data-borrar-perfil
               aria-label="Borrar del ranking" title="Borrar del ranking">${ICON.papelera}</button>
@@ -286,6 +289,10 @@ function conectarFilas() {
 
   cont.querySelectorAll("[data-fotos]").forEach((b) =>
     b.addEventListener("click", () => panelFotos(b.closest(".order-row").dataset.id))
+  );
+
+  cont.querySelectorAll("[data-score]").forEach((b) =>
+    b.addEventListener("click", () => panelScore(b.closest(".order-row").dataset.id))
   );
 
   cont.querySelectorAll("[data-borrar-perfil]").forEach((b) =>
@@ -381,6 +388,69 @@ function panelFotos(id) {
       toast("Foto reemplazada");
       await verRanking();
     } catch (err) { toast(err.message, "err"); }
+  });
+}
+
+/**
+ * Influence Breakdown: puntaje MANUAL de 6 categorías que suman sobre 100.
+ * Es informativo — no mueve el puesto, que lo siguen definiendo los votos.
+ */
+function panelScore(id) {
+  const p = ranking.find((x) => x.id === id);
+  if (!p) return;
+
+  const fila = document.querySelector(`.order-row[data-id="${id}"]`);
+  const previo = fila.nextElementSibling;
+  if (previo?.classList.contains("panel-score")) { previo.remove(); return; }
+  fila.nextElementSibling?.classList.contains("panel-fotos") && fila.nextElementSibling.remove();
+
+  const caja = document.createElement("div");
+  caja.className = "panel-fotos panel-score";
+  caja.innerHTML = `
+    <div class="score-grid">
+      ${CATEGORIAS.map(
+        (c) => `
+        <label class="score-campo">
+          <span>${c.nombre}</span>
+          <input class="input" type="number" min="0" max="100" data-campo="${c.campo}"
+                 value="${Number(p[c.campo]) || 0}">
+        </label>`
+      ).join("")}
+    </div>
+    <div class="score-total">
+      Total: <b id="scoreTotal">0</b> / 100
+      <span class="muted" id="scoreAviso"></span>
+    </div>
+    <div class="sol-actions">
+      <button class="btn btn--ok btn--sm" data-guardar>Guardar</button>
+      <button class="btn btn--ghost btn--sm" data-cerrar>Cerrar</button>
+    </div>`;
+  fila.after(caja);
+
+  const inputs = [...caja.querySelectorAll("[data-campo]")];
+  const recalcular = () => {
+    const total = inputs.reduce((a, i) => a + (Number(i.value) || 0), 0);
+    caja.querySelector("#scoreTotal").textContent = total;
+    caja.querySelector("#scoreAviso").textContent =
+      total > 100 ? "  ← te pasaste de 100" : total ? "" : "  (sin puntuar, no se muestra el gráfico)";
+    caja.querySelector("#scoreTotal").style.color = total > 100 ? "var(--down)" : "";
+  };
+  inputs.forEach((i) => i.addEventListener("input", recalcular));
+  recalcular();
+
+  caja.querySelector("[data-cerrar]").addEventListener("click", () => caja.remove());
+
+  caja.querySelector("[data-guardar]").addEventListener("click", async (e) => {
+    const total = inputs.reduce((a, i) => a + (Number(i.value) || 0), 0);
+    if (total > 100 && !confirm(`El total da ${total}, más de 100. ¿Guardar igual?`)) return;
+    const campos = {};
+    inputs.forEach((i) => { campos[i.dataset.campo] = Math.max(0, Number(i.value) || 0); });
+    e.currentTarget.disabled = true;
+    try {
+      await actualizarPerfil(id, campos);
+      toast(`Score guardado: ${total}/100`);
+      await verRanking();
+    } catch (err) { toast(err.message, "err"); e.currentTarget.disabled = false; }
   });
 }
 

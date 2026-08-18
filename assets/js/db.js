@@ -139,7 +139,7 @@ export async function listRankings() {
   const c = await sb();
   const { data, error } = await c
     .from("rankings")
-    .select("id,puesto_anterior,nombre,tagline,etiqueta_principal,etiquetas,carrera,instagram,dato,foto_frente,votos,puntaje")
+    .select("id,puesto_anterior,nombre,tagline,etiqueta_principal,etiquetas,carrera,instagram,dato,foto_frente,votos,puntaje,sc_aesthetics,sc_frame,sc_facial_harmony,sc_status,sc_consistency,sc_momentum")
     .eq("activo", true);
   boom(error);
   return conPuesto(data || []);

@@ -1092,6 +1092,53 @@ h1, h2, h3 { margin: 0; line-height: 1.15; letter-spacing: -0.02em; font-weight:
   color: var(--faint); font-size: 11.5px;
 }
 .panel-fotos .drop__tag { top: 6px; right: 6px; }
+
+/* Carga del Influence Breakdown en el panel */
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 9px;
+}
+.score-campo { display: flex; flex-direction: column; gap: 5px; }
+.score-campo span {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted);
+}
+.score-campo .input { padding: 8px 10px; font-size: 14px; }
+.score-total {
+  margin-top: 12px;
+  font-size: 13.5px; color: var(--text-2);
+}
+.score-total b { font-size: 17px; color: var(--gold); font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------- influence breakdown */
+
+.breakdown__head { margin-bottom: 4px; }
+.breakdown__head h3 {
+  font-size: 16px; letter-spacing: -0.01em; text-transform: none;
+  color: var(--text); margin-bottom: 3px;
+}
+.breakdown__head p { margin: 0; font-size: 12.5px; color: var(--muted); }
+
+.radar { width: 100%; max-width: 300px; height: auto; margin: 6px auto 10px; display: block; }
+
+.bd-grid { display: grid; gap: 7px; }
+@media (min-width: 620px) { .bd-grid { grid-template-columns: 1fr 1fr; gap: 7px 22px; } }
+
+.bd-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
+.bd-nombre { flex: 0 0 96px; color: var(--text-2); }
+.bd-barra {
+  flex: 1; height: 7px; border-radius: 99px;
+  background: var(--surface-3); overflow: hidden;
+}
+.bd-barra i {
+  display: block; height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, #f2b705, #e08a00);
+}
+.bd-pts {
+  flex: 0 0 46px; text-align: right;
+  color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums;
+}
 .order-row img { width: 42px; height: 42px; border-radius: 10px; object-fit: cover; background: var(--surface-3); }
 .order-row .pos {
   width: 30px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums;

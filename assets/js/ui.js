@@ -99,6 +99,94 @@ export function pillMovimiento(puesto, anterior) {
   return `<span class="pill pill--flat">—</span>`;
 }
 
+/* ------------------------------------------------- influence breakdown */
+
+/**
+ * Las 6 categorías del puntaje manual. Los nombres van en inglés a propósito:
+ * es la jerga del rubro y así lo pidió el diseño.
+ */
+export const CATEGORIAS = [
+  { campo: "sc_aesthetics",     nombre: "Aesthetics" },
+  { campo: "sc_frame",          nombre: "Frame" },
+  { campo: "sc_facial_harmony", nombre: "Facial Harmony" },
+  { campo: "sc_status",         nombre: "Status" },
+  { campo: "sc_consistency",    nombre: "Consistency" },
+  { campo: "sc_momentum",       nombre: "Momentum" },
+];
+
+export const totalScore = (p) =>
+  CATEGORIAS.reduce((a, c) => a + (Number(p?.[c.campo]) || 0), 0);
+
+/** Gráfico de radar hexagonal en SVG puro, sin librerías. */
+function radar(valores, tope) {
+  const R = 78, cx = 110, cy = 100;
+  const punto = (i, r) => {
+    const ang = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+    return [cx + Math.cos(ang) * r, cy + Math.sin(ang) * r];
+  };
+  const poli = (r) => Array.from({ length: 6 }, (_, i) => punto(i, r).map((n) => n.toFixed(1)).join(",")).join(" ");
+
+  const guias = [0.25, 0.5, 0.75, 1]
+    .map((k) => `<polygon points="${poli(R * k)}" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="1"/>`)
+    .join("");
+  const ejes = Array.from({ length: 6 }, (_, i) => {
+    const [x, y] = punto(i, R);
+    return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(255,255,255,.10)"/>`;
+  }).join("");
+
+  const forma = valores
+    .map((v, i) => punto(i, (Math.max(0, v) / tope) * R).map((n) => n.toFixed(1)).join(","))
+    .join(" ");
+
+  const etiquetas = CATEGORIAS.map((c, i) => {
+    const [x, y] = punto(i, R + 17);
+    const anchor = x < cx - 6 ? "end" : x > cx + 6 ? "start" : "middle";
+    return `<text x="${x.toFixed(1)}" y="${(y + 3.5).toFixed(1)}" text-anchor="${anchor}"
+              font-size="7.5" fill="#cbbcc1" font-weight="600">${c.nombre}</text>`;
+  }).join("");
+
+  const puntos = valores
+    .map((v, i) => {
+      const [x, y] = punto(i, (Math.max(0, v) / tope) * R);
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.4" fill="#f2b705"/>`;
+    })
+    .join("");
+
+  return `
+    <svg class="radar" viewBox="0 0 220 200" role="img" aria-label="Influence breakdown">
+      ${guias}${ejes}
+      <polygon points="${forma}" fill="rgba(242,183,5,.30)" stroke="#f2b705" stroke-width="1.6"/>
+      ${puntos}${etiquetas}
+    </svg>`;
+}
+
+/** Tarjeta completa del Influence Breakdown: radar + barras por categoría. */
+export function influenceBreakdown(p) {
+  const valores = CATEGORIAS.map((c) => Number(p?.[c.campo]) || 0);
+  const total = valores.reduce((a, v) => a + v, 0);
+  if (!total) return "";
+
+  const tope = Math.max(25, ...valores);
+  const barras = CATEGORIAS.map(
+    (c, i) => `
+    <div class="bd-row">
+      <span class="bd-nombre">${c.nombre}</span>
+      <span class="bd-barra"><i style="width:${((valores[i] / tope) * 100).toFixed(1)}%"></i></span>
+      <span class="bd-pts">${valores[i]} pts</span>
+    </div>`
+  ).join("");
+
+  return `
+    <div class="card card--full breakdown">
+      <div class="breakdown__head">
+        <h3>Influence Breakdown</h3>
+        <p>${total} points distributed across 6 categories</p>
+      </div>
+      ${radar(valores, tope)}
+      <div class="bd-grid">${barras}</div>
+    </div>`;
+}
+
 /* --------------------------------------------------------------- etiquetas */
 
 const COLORES_ETIQUETA = ["rosa", "violeta", "azul", "verdeagua", "verde", "naranja", "amarillo", "gris"];
@@ -109,13 +197,14 @@ function colorEtiqueta(texto) {
   return COLORES_ETIQUETA[h % COLORES_ETIQUETA.length];
 }
 
-/** Fila de etiquetas libres (chips de colores) más el score al final. */
-export function filaEtiquetas(etiquetas, puntaje) {
+/** Fila de etiquetas libres (chips de colores) más el score manual al final. */
+export function filaEtiquetas(etiquetas, perfil) {
   const chips = (etiquetas || [])
     .filter(Boolean)
     .map((t) => `<span class="tag tag--${colorEtiqueta(t)}">${esc(t)}</span>`)
     .join("");
-  const score = `<span class="tag tag--score">Score: ${Math.round(puntaje || 0)}</span>`;
+  const total = totalScore(perfil);
+  const score = total ? `<span class="tag tag--score">Score: ${total}/100</span>` : "";
   return `<div class="tags-row">${chips}${score}</div>`;
 }
 
