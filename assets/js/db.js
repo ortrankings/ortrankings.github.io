@@ -5,10 +5,13 @@
    leyendo /assets/data/demo.json (solo lectura, votos en localStorage).
    Así podés ver el diseño andando antes de crear el proyecto Supabase.
 
-   EL PUESTO LO ASIGNA EL ADMIN a mano. Ni los votos ni el Influence
-   Breakdown lo mueven: esos son informativos. `puesto_anterior` guarda el
-   puesto que tenía antes del último reordenamiento, y de ahí salen las
-   flechas verde/roja.
+   EL PUESTO tiene dos partes:
+     · `puesto` en la base es el PUESTO BASE que asigna el admin al aceptar.
+     · Los VOTOS lo mueven en vivo: cada VOTOS_POR_PUESTO votos netos
+       (votos menos copes) lo corren un lugar hacia arriba o hacia abajo.
+   El puesto que se muestra sale de ordenar por ese resultado.
+   `puesto_anterior` guarda dónde estaba en la última publicación, y de ahí
+   salen las flechas verde/roja.
    ===================================================================== */
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY, configurado } from "./config.js";
@@ -60,15 +63,41 @@ function marcarCope(perfilId) {
   localStorage.setItem("ort_copes", JSON.stringify(v));
 }
 
-/** Ordena por el puesto que asignó el admin. Los que no tienen, al final. */
-function porPuesto(filas) {
-  const sin = (p) => p === null || p === undefined;
-  return [...filas].sort((a, b) => {
-    if (sin(a.puesto) && sin(b.puesto)) return a.nombre.localeCompare(b.nombre, "es");
-    if (sin(a.puesto)) return 1;
-    if (sin(b.puesto)) return -1;
-    return a.puesto - b.puesto;
+/** Cuántos votos netos hacen falta para moverse un puesto. */
+export const VOTOS_POR_PUESTO = 5;
+
+/**
+ * Toma el puesto base que puso el admin, lo corre según los votos netos y
+ * devuelve la lista ya ordenada con el puesto final que se muestra.
+ * Los que no tienen puesto base van siempre al final.
+ */
+function conPuestoFinal(filas) {
+  const SIN_BASE = 99999;
+  const calculado = filas.map((r) => {
+    const netos = (r.votos || 0) - (r.copes || 0);
+    // trunc y no floor: con votos negativos tiene que bajar, no redondear mal
+    const desplazamiento = Math.trunc(netos / VOTOS_POR_PUESTO);
+    const base = r.puesto ?? null;
+    return {
+      ...r,
+      puesto_base: base,
+      votos_netos: netos,
+      desplazamiento,
+      _orden: (base ?? SIN_BASE) - (base === null ? 0 : desplazamiento),
+    };
   });
+
+  calculado.sort(
+    (a, b) =>
+      a._orden - b._orden ||
+      (b.votos_netos || 0) - (a.votos_netos || 0) ||
+      a.nombre.localeCompare(b.nombre, "es")
+  );
+
+  return calculado.map((r, i) => ({
+    ...r,
+    puesto: r.puesto_base === null ? null : i + 1,
+  }));
 }
 
 /** Llama a la Edge Function "votar" — único lugar donde se crean votos y copes. */
@@ -137,15 +166,15 @@ export async function listRankings() {
         foto_frente: r.foto_frente || demoFoto(r.nombre),
       };
     });
-    return porPuesto(filas);
+    return conPuestoFinal(filas);
   }
   const c = await sb();
   const { data, error } = await c
     .from("rankings")
-    .select("id,puesto,puesto_anterior,nombre,tagline,etiqueta_principal,etiquetas,carrera,instagram,foto_frente,votos,puntaje,sc_aesthetics,sc_frame,sc_facial_harmony,sc_status,sc_consistency,sc_momentum")
+    .select("id,puesto,puesto_anterior,copes,nombre,tagline,etiqueta_principal,etiquetas,carrera,instagram,foto_frente,votos,puntaje,sc_aesthetics,sc_frame,sc_facial_harmony,sc_status,sc_consistency,sc_momentum")
     .eq("activo", true);
   boom(error);
-  return porPuesto(data || []);
+  return conPuestoFinal(data || []);
 }
 
 export async function getPerfil(id) {
@@ -320,7 +349,10 @@ export async function listRankingsAdmin() {
   const { data, error } = await c.from("rankings").select("*");
   boom(error);
   const todos = data || [];
-  return [...porPuesto(todos.filter((r) => r.activo)), ...porPuesto(todos.filter((r) => !r.activo))];
+  return [
+    ...conPuestoFinal(todos.filter((r) => r.activo)),
+    ...conPuestoFinal(todos.filter((r) => !r.activo)).map((r) => ({ ...r, puesto: null })),
+  ];
 }
 
 export async function actualizarPerfil(id, campos) {

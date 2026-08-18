@@ -52,6 +52,7 @@ alter table public.rankings add column if not exists sc_status         integer n
 alter table public.rankings add column if not exists sc_consistency    integer not null default 0;
 alter table public.rankings add column if not exists sc_momentum       integer not null default 0;
 alter table public.rankings add column if not exists puesto integer;
+alter table public.rankings add column if not exists copes integer not null default 0;
 alter table public.rankings drop column if exists foto_perfil;
 create index if not exists rankings_puesto_idx on public.rankings (puesto);
 
@@ -160,6 +161,29 @@ drop trigger if exists trg_puntaje_voto on public.votos;
 create trigger trg_puntaje_voto
   after insert on public.votos
   for each row execute function public.sumar_puntaje_voto();
+
+-- Cuántos COPE tiene cada perfil. Se usa para el neto (votos menos copes)
+-- que decide cuánto se mueve del puesto base.
+create or replace function public.sync_copes()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  objetivo uuid := coalesce(new.perfil_id, old.perfil_id);
+begin
+  update public.rankings
+     set copes = (select count(*) from public.copes where perfil_id = objetivo)
+   where id = objetivo;
+  return null;
+end;
+$$;
+
+drop trigger if exists trg_sync_copes on public.copes;
+create trigger trg_sync_copes
+  after insert or delete on public.copes
+  for each row execute function public.sync_copes();
 
 create or replace function public.restar_puntaje_cope()
 returns trigger

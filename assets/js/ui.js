@@ -125,9 +125,13 @@ export const CATEGORIAS = [
 export const totalScore = (p) =>
   CATEGORIAS.reduce((a, c) => a + (Number(p?.[c.campo]) || 0), 0);
 
-/** Gráfico de radar hexagonal en SVG puro, sin librerías. */
+/**
+ * Gráfico de radar hexagonal en SVG puro, sin librerías.
+ * El lienzo es más ancho que alto a propósito: los nombres largos como
+ * "Facial Harmony" se salían del borde con un viewBox cuadrado.
+ */
 function radar(valores, tope) {
-  const R = 78, cx = 110, cy = 100;
+  const R = 66, cx = 150, cy = 102;
   const punto = (i, r) => {
     const ang = (Math.PI * 2 * i) / 6 - Math.PI / 2;
     return [cx + Math.cos(ang) * r, cy + Math.sin(ang) * r];
@@ -147,10 +151,10 @@ function radar(valores, tope) {
     .join(" ");
 
   const etiquetas = CATEGORIAS.map((c, i) => {
-    const [x, y] = punto(i, R + 17);
+    const [x, y] = punto(i, R + 15);
     const anchor = x < cx - 6 ? "end" : x > cx + 6 ? "start" : "middle";
     return `<text x="${x.toFixed(1)}" y="${(y + 3.5).toFixed(1)}" text-anchor="${anchor}"
-              font-size="7.5" fill="#cbbcc1" font-weight="600">${c.nombre}</text>`;
+              font-size="8.5" fill="#cbbcc1" font-weight="600">${c.nombre}</text>`;
   }).join("");
 
   const puntos = valores
@@ -161,7 +165,7 @@ function radar(valores, tope) {
     .join("");
 
   return `
-    <svg class="radar" viewBox="0 0 220 200" role="img" aria-label="Influence breakdown">
+    <svg class="radar" viewBox="0 0 300 204" role="img" aria-label="Influence breakdown">
       ${guias}${ejes}
       <polygon points="${forma}" fill="rgba(242,183,5,.30)" stroke="#f2b705" stroke-width="1.6"/>
       ${puntos}${etiquetas}

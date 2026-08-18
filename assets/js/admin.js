@@ -262,7 +262,9 @@ function filaRanking(p, i) {
       <div class="nm">
         ${esc(p.nombre)}${oculto ? ' <span class="pill pill--flat">oculto</span>' : ""}
         ${p.etiqueta_principal ? `<span class="pill pill--new" style="background:none;color:var(--gold)">${esc(p.etiqueta_principal)}</span>` : ""}
-        <small>${esc(p.tagline || p.carrera || "—")} · ${p.votos || 0} votos · ${p.puntaje || 0} pts</small>
+        <small>${esc(p.tagline || p.carrera || "—")} · base #${p.puesto_base ?? "—"}${
+          p.desplazamiento ? ` ${p.desplazamiento > 0 ? "▲" : "▼"}${Math.abs(p.desplazamiento)} por votos` : ""
+        } · ${p.votos || 0} votos · ${p.copes || 0} cope</small>
       </div>
       ${!oculto ? pillMovimiento(p.puesto, p.puesto_anterior) : ""}
       <div class="order-arrows">
@@ -282,8 +284,9 @@ function filaRanking(p, i) {
 function pintarRanking() {
   vista.innerHTML = `
     <div class="notice notice--info" style="margin-bottom:13px">${ICON.info}
-      <div>El puesto lo asignás vos. Movés con las flechitas y después
-      <strong>Publicar orden</strong>. Los votos y el Score son informativos: no mueven a nadie.</div>
+      <div>Vos asignás el <strong>puesto base</strong>; desde ahí lo mueven los votos:
+      cada <strong>5 votos netos</strong> (votos menos COPE) vale un lugar, en vivo.
+      Con las flechitas y <strong>Publicar orden</strong> reasignás las bases.</div>
     </div>
     <div id="filas">${ranking.map(filaRanking).join("")}</div>
     <div class="sticky-save" ${hayCambios() ? "" : 'style="display:none"'}>
@@ -500,6 +503,18 @@ async function editar(id) {
   const p = ranking.find((x) => x.id === id);
   if (!p) return;
 
+  const puestoTexto = prompt(
+    `Puesto BASE de ${p.nombre} (desde ahi lo mueven los votos).
+Vacio = sin puesto:`,
+    p.puesto_base ?? ""
+  );
+  if (puestoTexto === null) return;
+  const puestoBase = puestoTexto.trim() === "" ? null : Number(puestoTexto.trim());
+  if (puestoBase !== null && (!Number.isInteger(puestoBase) || puestoBase < 1)) {
+    toast("Puesto invalido: un numero entero, o vacio", "err");
+    return;
+  }
+
   const nombre = prompt("Nombre:", p.nombre);
   if (nombre === null) return;
   const tagline = prompt("Tagline (ej. Genetic Apex):", p.tagline || "");
@@ -524,6 +539,7 @@ async function editar(id) {
 
   try {
     await actualizarPerfil(id, {
+      puesto: puestoBase,
       nombre: nombre.trim(),
       tagline: tagline.trim() || null,
       etiqueta_principal: etiquetaPrincipal.trim() || null,
