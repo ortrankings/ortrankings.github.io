@@ -2,11 +2,11 @@
    Perfil individual
    ===================================================================== */
 
-import { getPerfil, listRankings, votar, yaVoto } from "./db.js";
+import { listRankings, votar, yaVoto, enviarCope, yaCope } from "./db.js";
 import { SITE } from "./config.js";
 import {
   $, ICON, esc, montarNav, montarFooter, pillMovimiento, avatarFallback,
-  igLimpio, toast, sinPuesto, etiquetaPuesto, TITULO_BOSS,
+  igLimpio, toast, TITULO_BOSS, filaEtiquetas, obtenerTurnstileToken,
 } from "./ui.js";
 
 montarNav("rankings");
@@ -55,31 +55,30 @@ document.addEventListener("keydown", (e) => {
 /* -------------------------------------------------------------- render */
 
 function render(p, vecinos) {
-  document.title = sinPuesto(p.puesto)
-    ? `${p.nombre} — ORT Rankings`
-    : `${p.nombre} · #${p.puesto} — ORT Rankings`;
+  document.title = `${p.nombre} · #${p.puesto} — ORT Rankings`;
   const esBoss = p.puesto === 1;
-  const medalla = esBoss
-    ? " profile__rank--boss"
-    : (!sinPuesto(p.puesto) && p.puesto <= 3 ? ` profile__rank--${p.puesto}` : "");
-  const textoPuesto = sinPuesto(p.puesto)
-    ? "PUESTO NO ASIGNADO"
-    : (esBoss ? TITULO_BOSS : `PUESTO #${p.puesto}`);
+  const medalla = esBoss ? " profile__rank--boss" : (p.puesto <= 3 ? ` profile__rank--${p.puesto}` : "");
+  const textoPuesto = esBoss ? TITULO_BOSS : `PUESTO #${p.puesto}`;
   const foto = p.foto_frente || avatarFallback(p.nombre);
   const ig = igLimpio(p.instagram);
   const votado = yaVoto(p.id);
+  const copeado = yaCope(p.id);
 
   cont.innerHTML = `
     <section class="profile__hero${esBoss ? " is-champion" : ""}">
-      <span class="profile__watermark" aria-hidden="true">${etiquetaPuesto(p.puesto)}</span>
+      <span class="profile__watermark" aria-hidden="true">${p.puesto}</span>
       <img class="profile__photo" src="${esc(foto)}" alt="${esc(p.nombre)}"
            id="fotoGrande" onerror="this.src='${avatarFallback(p.nombre)}'">
       <div class="profile__overlay">
         <div class="profile__rank${medalla}">
           ${esBoss ? ICON.fuego : ICON.trofeo} ${textoPuesto}
         </div>
-        <h1 class="profile__name">${esc(p.nombre)}</h1>
+        <h1 class="profile__name">
+          ${esc(p.nombre)}
+          ${p.etiqueta_principal ? `<span class="profile__principal">${esc(p.etiqueta_principal)}</span>` : ""}
+        </h1>
         ${p.tagline ? `<p class="profile__tag">${esc(p.tagline)}</p>` : ""}
+        ${filaEtiquetas(p.etiquetas, p.puntaje)}
         <div class="profile__chips">
           ${pillMovimiento(p.puesto, p.puesto_anterior)}
           ${p.carrera ? `<span class="chip">${esc(p.carrera)}</span>` : ""}
@@ -97,7 +96,12 @@ function render(p, vecinos) {
         <button class="btn btn--primary" id="btnVotar" ${votado ? "disabled" : ""}>
           ${votado ? ICON.check : ICON.voto} ${votado ? "Ya votaste" : "Votar"}
         </button>
+        <button class="btn btn--ghost btn--sm" id="btnCope" ${copeado ? "disabled" : ""}>
+          ${copeado ? "Ya le pusiste cope" : "cope"}
+        </button>
       </div>
+
+      <div class="card--full" id="cajaCope"></div>
 
       ${p.dato ? `
       <div class="card card--full">
@@ -129,12 +133,12 @@ function render(p, vecinos) {
       ${vecinos.prev
         ? `<a class="vecino" href="/perfil/?id=${encodeURIComponent(vecinos.prev.id)}">
              <span>${ICON.atras}</span>
-             <div><small>${sinPuesto(vecinos.prev.puesto) ? "Sin puesto" : "Puesto #" + vecinos.prev.puesto}</small>${esc(vecinos.prev.nombre)}</div>
+             <div><small>Puesto #${vecinos.prev.puesto}</small>${esc(vecinos.prev.nombre)}</div>
            </a>`
         : `<span></span>`}
       ${vecinos.next
         ? `<a class="vecino vecino--der" href="/perfil/?id=${encodeURIComponent(vecinos.next.id)}">
-             <div><small>${sinPuesto(vecinos.next.puesto) ? "Sin puesto" : "Puesto #" + vecinos.next.puesto}</small>${esc(vecinos.next.nombre)}</div>
+             <div><small>Puesto #${vecinos.next.puesto}</small>${esc(vecinos.next.nombre)}</div>
              <span>${ICON.chevron}</span>
            </a>`
         : `<span></span>`}
@@ -145,14 +149,18 @@ function render(p, vecinos) {
 
   $("#btnVotar").addEventListener("click", async (e) => {
     const btn = e.currentTarget;
+    const textoOriginal = btn.innerHTML;
     btn.disabled = true;
+    btn.innerHTML = "Verificando…";
     try {
-      const total = await votar(p.id);
-      contarHasta($("#voteCount"), total);
+      const token = await obtenerTurnstileToken();
+      const { votos } = await votar(p.id, token);
+      contarHasta($("#voteCount"), votos);
       btn.innerHTML = `${ICON.check} Ya votaste`;
       toast("¡Voto registrado!");
     } catch (err) {
-      btn.innerHTML = `${ICON.check} Ya votaste`;
+      btn.innerHTML = textoOriginal;
+      btn.disabled = false;
       toast(err.message, "err");
     }
   });
@@ -164,6 +172,57 @@ function render(p, vecinos) {
       if (navigator.share) await navigator.share({ title: texto, text: texto, url });
       else { await navigator.clipboard.writeText(url); toast("Link copiado"); }
     } catch { /* el usuario canceló */ }
+  });
+
+  // El "cope" es un dislike con justificación escrita, sin foto: queda
+  // guardado para que lo revise el admin y resta puntaje al perfil.
+  $("#btnCope").addEventListener("click", () => {
+    const caja = $("#cajaCope");
+    if (caja.innerHTML) { caja.innerHTML = ""; return; }
+    caja.innerHTML = `
+      <div class="notice notice--warn">
+        <div style="width:100%">
+          <strong>¿Por qué le ponés cope?</strong>
+          <p class="small muted" style="margin:4px 0 10px">
+            Contanos el motivo. Queda registrado y lo revisamos nosotros.
+          </p>
+          <textarea class="textarea" id="mensajeCope" maxlength="500"
+                    placeholder="Escribí tu justificación…"></textarea>
+          <div id="errCope"></div>
+          <div class="form-nav" style="margin-top:10px">
+            <button class="btn btn--ghost btn--sm" id="btnCancelarCope">Cancelar</button>
+            <button class="btn btn--danger btn--sm" id="btnEnviarCope">Enviar cope</button>
+          </div>
+        </div>
+      </div>`;
+    caja.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    $("#mensajeCope").focus();
+
+    $("#btnCancelarCope").addEventListener("click", () => { caja.innerHTML = ""; });
+
+    $("#btnEnviarCope").addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const mensaje = $("#mensajeCope").value.trim();
+      if (!mensaje) {
+        $("#errCope").innerHTML = `<div class="field-error" style="margin-top:6px">Escribí una justificación.</div>`;
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "Verificando…";
+      try {
+        const token = await obtenerTurnstileToken();
+        await enviarCope(p.id, mensaje, token);
+        caja.innerHTML = "";
+        const btnCope = $("#btnCope");
+        btnCope.disabled = true;
+        btnCope.textContent = "Ya le pusiste cope";
+        toast("Cope enviado");
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Enviar cope";
+        toast(err.message, "err");
+      }
+    });
   });
 
   // La baja NO es automática: se pide por DM y la verificamos antes de sacar el perfil.
@@ -196,8 +255,9 @@ function render(p, vecinos) {
 
   cont.innerHTML = `<div class="skeleton" style="height:60vh;border-radius:22px"></div>`;
   try {
-    const [p, todos] = await Promise.all([getPerfil(id), listRankings()]);
-    if (!p) {
+    const todos = await listRankings();
+    const i = todos.findIndex((r) => r.id === id);
+    if (i === -1) {
       cont.innerHTML = `
         <div class="empty">${ICON.vacio}
           <h3>Perfil no encontrado</h3>
@@ -206,8 +266,7 @@ function render(p, vecinos) {
         </div>`;
       return;
     }
-    const i = todos.findIndex((r) => r.id === p.id);
-    render(p, { prev: todos[i - 1] || null, next: todos[i + 1] || null });
+    render(todos[i], { prev: todos[i - 1] || null, next: todos[i + 1] || null });
   } catch (err) {
     cont.innerHTML = `<div class="notice notice--err">${ICON.alerta}<div>${esc(err.message)}</div></div>`;
   }

@@ -13,6 +13,18 @@
 export const SUPABASE_URL = "https://hvpewtyljxkappahbdyd.supabase.co";
 export const SUPABASE_ANON_KEY = "sb_publishable_VvAiIo3Ktkd6Gzo6vbBSSA_7uEzZidd";
 
+/* -----------------------------------------------------------------------
+   Cloudflare Turnstile — el captcha que evita que una IP vote o "copee"
+   mil veces por día. Es opcional: mientras esté vacío, votar y copear
+   funcionan igual, solo que sin el filtro anti-bot.
+
+   1. Entrá a https://dash.cloudflare.com/?to=/:account/turnstile
+   2. Add site → tipo "Managed" → dominio: ortrankings.github.io
+   3. Copiá la "Site Key" (empieza con 0x...) y pegala acá abajo.
+      La "Secret Key" NO va acá: esa se carga en el servidor, ver README.
+   ----------------------------------------------------------------------- */
+export const TURNSTILE_SITE_KEY = "";
+
 /* --------------------------------------------------------------------- */
 
 export const SITE = {

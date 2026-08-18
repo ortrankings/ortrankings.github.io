@@ -5,7 +5,7 @@
 import { listRankings } from "./db.js";
 import {
   $, ICON, esc, montarNav, montarFooter, pillMovimiento, avatarFallback, movimiento,
-  etiquetaPuesto, claseBadge, sinPuesto, TITULO_BOSS,
+  claseBadge, TITULO_BOSS,
 } from "./ui.js";
 
 montarNav("rankings");
@@ -27,16 +27,15 @@ function skeletons(n = 8) {
 
 function tarjeta(p) {
   const esBoss = p.puesto === 1;
-  const subtitulo = esBoss ? TITULO_BOSS : (p.tagline || p.carrera || "Puesto no asignado");
+  const subtitulo = p.etiqueta_principal || (esBoss ? TITULO_BOSS : (p.tagline || p.carrera || "—"));
   return `
-    <a class="rank-card${esBoss ? " rank-card--boss" : ""}${sinPuesto(p.puesto) ? " rank-card--sin" : ""}"
-       href="/perfil/?id=${encodeURIComponent(p.id)}">
-      <div class="rank-badge${claseBadge(p.puesto)}">${etiquetaPuesto(p.puesto)}</div>
+    <a class="rank-card${esBoss ? " rank-card--boss" : ""}" href="/perfil/?id=${encodeURIComponent(p.id)}">
+      <div class="rank-badge${claseBadge(p.puesto)}">${p.puesto}</div>
       <img class="rank-avatar" src="${esc(p.foto_frente || "")}" alt=""
            loading="lazy" onerror="this.src='${avatarFallback(p.nombre)}'">
       <div class="rank-body">
         <div class="rank-name">${esc(p.nombre)}</div>
-        <div class="rank-tag${esBoss ? " rank-tag--boss" : ""}">${esc(subtitulo)}</div>
+        <div class="rank-tag${esBoss || p.etiqueta_principal ? " rank-tag--boss" : ""}">${esc(subtitulo)}</div>
       </div>
       ${pillMovimiento(p.puesto, p.puesto_anterior)}
       <span class="rank-chevron">${ICON.chevron}</span>
@@ -71,20 +70,15 @@ function slotVacante(puesto) {
     </div>`;
 }
 
-/**
- * Mezcla los perfiles reales con los casilleros vacíos del 1 al 10,
- * y deja al final a los que todavía no tienen puesto.
- */
+/** Mezcla los perfiles reales (ya ordenados por puntaje) con los casilleros vacíos que falten. */
 function conCasilleros(filas) {
-  const porPuesto = new Map(filas.filter((p) => !sinPuesto(p.puesto)).map((p) => [p.puesto, p]));
-  const sueltos = filas.filter((p) => sinPuesto(p.puesto));
-  const tope = Math.max(SLOTS, ...[...porPuesto.keys()], 0);
-
+  const tope = Math.max(SLOTS, filas.length);
   const html = [];
   for (let i = 1; i <= tope; i++) {
-    html.push(porPuesto.has(i) ? tarjeta(porPuesto.get(i)) : slotVacante(i));
+    const p = filas[i - 1];
+    html.push(p ? tarjeta(p) : slotVacante(i));
   }
-  return html.join("") + sueltos.map(tarjeta).join("");
+  return html.join("");
 }
 
 /** Pantalla de lanzamiento: se muestra mientras el ranking está vacío. */
@@ -102,7 +96,7 @@ function pantallaLanzamiento() {
       <div class="launch__pasos">
         <div><b>01</b> Subís tus dos fotos</div>
         <div><b>02</b> Verificamos que seas de ORT</div>
-        <div><b>03</b> Te asignamos tu puesto</div>
+        <div><b>03</b> Entras y competis por el puesto</div>
       </div>
     </div>
 
@@ -117,30 +111,22 @@ function pintar() {
   const q = inputQ.value.trim().toLowerCase();
   const orden = selOrden.value;
 
-  // Los que todavía no tienen puesto van siempre al final.
-  const porPuesto = (a, b) => {
-    if (sinPuesto(a.puesto) && sinPuesto(b.puesto)) return a.nombre.localeCompare(b.nombre, "es");
-    if (sinPuesto(a.puesto)) return 1;
-    if (sinPuesto(b.puesto)) return -1;
-    return a.puesto - b.puesto;
-  };
-
   let filas = datos.filter((p) => {
     if (!q) return true;
-    return [p.nombre, p.tagline, p.instagram]
+    return [p.nombre, p.tagline, p.etiqueta_principal, p.instagram, ...(p.etiquetas || [])]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(q));
   });
 
   if (orden === "votos") {
-    filas = [...filas].sort((a, b) => (b.votos || 0) - (a.votos || 0) || porPuesto(a, b));
+    filas = [...filas].sort((a, b) => (b.votos || 0) - (a.votos || 0) || a.puesto - b.puesto);
   } else if (orden === "sube") {
     const d = (p) => { const m = movimiento(p.puesto, p.puesto_anterior); return m.tipo === "up" ? m.valor : -1; };
-    filas = [...filas].sort((a, b) => d(b) - d(a) || porPuesto(a, b));
+    filas = [...filas].sort((a, b) => d(b) - d(a) || a.puesto - b.puesto);
   } else if (orden === "nuevos") {
     filas = filas.filter((p) => p.puesto_anterior === null || p.puesto_anterior === undefined);
   } else {
-    filas = [...filas].sort(porPuesto);
+    filas = [...filas].sort((a, b) => a.puesto - b.puesto);
   }
 
   if (!filas.length) {
@@ -187,7 +173,7 @@ function popupBienvenida() {
       <div class="launch__pasos">
         <div><b>01</b> Subís tus dos fotos</div>
         <div><b>02</b> Verificamos que seas de ORT</div>
-        <div><b>03</b> Te asignamos tu puesto</div>
+        <div><b>03</b> Entras y competis por el puesto</div>
       </div>
       <a class="btn btn--primary btn--block" href="/entrar/">
         ${ICON.entrar} Quiero estar en la primera edición

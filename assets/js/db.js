@@ -4,6 +4,11 @@
    Si config.js todavía no tiene las claves, el sitio funciona igual
    leyendo /assets/data/demo.json (solo lectura, votos en localStorage).
    Así podés ver el diseño andando antes de crear el proyecto Supabase.
+
+   EL PUESTO NUNCA SE GUARDA: se calcula siempre ordenando por `puntaje`
+   (cada voto suma, cada cope resta). Lo único que se guarda es
+   `puesto_anterior`, una foto del puesto la última vez que el admin
+   "cerró la edición" — de ahí salen las flechas verde/roja.
    ===================================================================== */
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY, configurado } from "./config.js";
@@ -38,13 +43,51 @@ export function votanteId() {
 }
 
 const votosLocales = () => JSON.parse(localStorage.getItem("ort_votos") || "{}");
+const copesLocales = () => JSON.parse(localStorage.getItem("ort_copes") || "{}");
 
 export const yaVoto = (perfilId) => Boolean(votosLocales()[perfilId]);
+export const yaCope = (perfilId) => Boolean(copesLocales()[perfilId]);
 
 function marcarVoto(perfilId) {
   const v = votosLocales();
   v[perfilId] = Date.now();
   localStorage.setItem("ort_votos", JSON.stringify(v));
+}
+
+function marcarCope(perfilId) {
+  const v = copesLocales();
+  v[perfilId] = Date.now();
+  localStorage.setItem("ort_copes", JSON.stringify(v));
+}
+
+/** Ordena por puntaje (cada voto +20, cada cope -20) y le pone el número de puesto. */
+function conPuesto(filas) {
+  const ordenado = [...filas].sort(
+    (a, b) => (b.puntaje || 0) - (a.puntaje || 0) || a.nombre.localeCompare(b.nombre, "es")
+  );
+  return ordenado.map((r, i) => ({ ...r, puesto: i + 1 }));
+}
+
+/** Llama a la Edge Function "votar" — único lugar donde se crean votos y copes. */
+async function llamarVotar(payload) {
+  const url = `${SUPABASE_URL}/functions/v1/votar`;
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error("No se pudo conectar. Revisá tu conexión e intentá de nuevo.");
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "No se pudo procesar la solicitud");
+  return data;
 }
 
 /* -------------------------------------------------------- demo dataset */
@@ -77,65 +120,74 @@ function demoFoto(nombre, w = 640, h = 800) {
   return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 }
 
-/** Ranking completo, ordenado por puesto. */
+/** Ranking completo, con el puesto ya calculado a partir del puntaje. */
 export async function listRankings() {
   if (DEMO) {
     const d = await demoData();
-    const extra = votosLocales();
-    return d.rankings
-      .map((r) => ({
+    const extraVotos = votosLocales();
+    const filas = d.rankings.map((r) => {
+      const votosExtra = extraVotos[r.id] ? 1 : 0;
+      return {
         ...r,
-        votos: (r.votos || 0) + (extra[r.id] ? 1 : 0),
-        foto_perfil: r.foto_perfil || demoFoto(r.nombre, 300, 300),
+        votos: (r.votos || 0) + votosExtra,
+        puntaje: (r.puntaje ?? (r.votos || 0) * 20) + votosExtra * 20,
         foto_frente: r.foto_frente || demoFoto(r.nombre),
-      }))
-      .sort((a, b) => a.puesto - b.puesto);
+      };
+    });
+    return conPuesto(filas);
   }
   const c = await sb();
   const { data, error } = await c
     .from("rankings")
-    .select("id,puesto,puesto_anterior,nombre,tagline,carrera,instagram,dato,foto_frente,votos")
-    .eq("activo", true)
-    .order("puesto", { ascending: true, nullsFirst: false });
+    .select("id,puesto_anterior,nombre,tagline,etiqueta_principal,etiquetas,carrera,instagram,dato,foto_frente,votos,puntaje")
+    .eq("activo", true);
   boom(error);
-  return data || [];
+  return conPuesto(data || []);
 }
 
 export async function getPerfil(id) {
-  if (DEMO) {
-    const todos = await listRankings();
-    return todos.find((r) => r.id === id) || null;
-  }
-  const c = await sb();
-  const { data, error } = await c
-    .from("rankings")
-    .select("id,puesto,puesto_anterior,nombre,tagline,carrera,instagram,dato,foto_frente,votos")
-    .eq("id", id)
-    .eq("activo", true)
-    .maybeSingle();
-  boom(error);
-  return data;
+  const todos = await listRankings();
+  return todos.find((r) => r.id === id) || null;
 }
 
-/** Suma un voto. Devuelve el total nuevo. Lanza si ya votó. */
-export async function votar(perfilId) {
+/** Suma un voto pasando por Turnstile. Devuelve {votos, puntaje}. Lanza si ya votó. */
+export async function votar(perfilId, turnstileToken) {
   if (yaVoto(perfilId)) throw new Error("Ya votaste a este perfil");
 
   if (DEMO) {
     marcarVoto(perfilId);
     const p = await getPerfil(perfilId);
-    return p?.votos ?? 0;
+    return { votos: p?.votos ?? 0, puntaje: p?.puntaje ?? 0 };
   }
 
-  const c = await sb();
-  const { error } = await c.from("votos").insert({ perfil_id: perfilId, votante: votanteId() });
-  if (error) {
-    if (error.code === "23505") { marcarVoto(perfilId); throw new Error("Ya votaste a este perfil"); }
-    boom(error);
-  }
+  const data = await llamarVotar({
+    perfil_id: perfilId,
+    votante: votanteId(),
+    tipo: "voto",
+    turnstileToken,
+  });
   marcarVoto(perfilId);
-  const { data } = await c.from("rankings").select("votos").eq("id", perfilId).maybeSingle();
-  return data?.votos ?? 0;
+  return data;
+}
+
+/** Manda un "cope": dislike con justificación escrita, sin foto. Resta puntaje. */
+export async function enviarCope(perfilId, mensaje, turnstileToken) {
+  if (yaCope(perfilId)) throw new Error("Ya le pusiste cope a este perfil");
+  if (!String(mensaje || "").trim()) throw new Error("Escribí una justificación");
+
+  if (DEMO) {
+    marcarCope(perfilId);
+    return;
+  }
+
+  await llamarVotar({
+    perfil_id: perfilId,
+    votante: votanteId(),
+    tipo: "cope",
+    mensaje: mensaje.trim(),
+    turnstileToken,
+  });
+  marcarCope(perfilId);
 }
 
 /* ------------------------------------------------------- solicitudes */
@@ -215,11 +267,10 @@ export async function contarSolicitudes() {
   return { pendiente: p.count || 0, aceptada: a.count || 0, rechazada: r.count || 0 };
 }
 
-/** Acepta una solicitud: crea el perfil publicado y marca la solicitud. */
-export async function aceptarSolicitud(sol, { puesto, tagline }) {
+/** Acepta una solicitud: crea el perfil con puntaje 0 y marca la solicitud. */
+export async function aceptarSolicitud(sol, { tagline } = {}) {
   const c = await sb();
   const { error: e1 } = await c.from("rankings").insert({
-    puesto,
     puesto_anterior: null, // null = perfil nuevo → se muestra la chapa NUEVO
     nombre: sol.nombre,
     tagline: tagline || null,
@@ -258,15 +309,18 @@ export async function borrarSolicitud(id) {
   boom(error);
 }
 
-/** Ranking completo para el admin (incluye ocultos). */
+/** Ranking completo para el admin: activos con puesto calculado, ocultos al final sin puesto. */
 export async function listRankingsAdmin() {
   const c = await sb();
-  const { data, error } = await c
-    .from("rankings")
-    .select("*")
-    .order("puesto", { ascending: true, nullsFirst: false });
+  const { data, error } = await c.from("rankings").select("*");
   boom(error);
-  return data || [];
+  const todos = data || [];
+  const activos = conPuesto(todos.filter((r) => r.activo));
+  const ocultos = todos
+    .filter((r) => !r.activo)
+    .sort((a, b) => (b.puntaje || 0) - (a.puntaje || 0))
+    .map((r) => ({ ...r, puesto: null }));
+  return [...activos, ...ocultos];
 }
 
 export async function actualizarPerfil(id, campos) {
@@ -282,18 +336,16 @@ export async function borrarPerfil(id) {
 }
 
 /**
- * Publica un orden nuevo. Guarda el puesto viejo en `puesto_anterior`
- * para que el sitio calcule solo las flechas verde/roja de movimiento.
- * `filas` = [{ id, puestoViejo, puestoNuevo }]
+ * "Cierra la edición": guarda el puesto actual (calculado por puntaje) de
+ * cada activo como `puesto_anterior`, para que la próxima vez las flechas
+ * verde/roja comparen contra este momento. No mueve a nadie ni toca puntajes.
  */
-export async function publicarOrden(filas) {
+export async function cerrarEdicion() {
+  const activos = await listRankings();
   const c = await sb();
   const errores = [];
-  for (const f of filas) {
-    const { error } = await c
-      .from("rankings")
-      .update({ puesto: f.puestoNuevo, puesto_anterior: f.puestoViejo })
-      .eq("id", f.id);
+  for (const r of activos) {
+    const { error } = await c.from("rankings").update({ puesto_anterior: r.puesto }).eq("id", r.id);
     if (error) errores.push(error.message);
   }
   if (errores.length) throw new Error(errores[0]);
@@ -312,5 +364,22 @@ export async function listReportes() {
 export async function borrarReporte(id) {
   const c = await sb();
   const { error } = await c.from("reportes").delete().eq("id", id);
+  boom(error);
+}
+
+/** Los "cope" (dislike con justificación) pendientes de revisar. */
+export async function listCopes() {
+  const c = await sb();
+  const { data, error } = await c
+    .from("copes")
+    .select("*, rankings(nombre)")
+    .order("creado", { ascending: false });
+  boom(error);
+  return data || [];
+}
+
+export async function borrarCope(id) {
+  const c = await sb();
+  const { error } = await c.from("copes").delete().eq("id", id);
   boom(error);
 }

@@ -5,7 +5,8 @@
 import {
   DEMO, sesion, login, logout,
   listSolicitudes, aceptarSolicitud, rechazarSolicitud, reabrirSolicitud, borrarSolicitud,
-  listRankingsAdmin, actualizarPerfil, borrarPerfil, publicarOrden,
+  listRankingsAdmin, actualizarPerfil, borrarPerfil, cerrarEdicion,
+  listCopes, borrarCope,
 } from "./db.js";
 import {
   $, $$, ICON, esc, montarNav, montarFooter, avatarFallback, igLimpio,
@@ -13,8 +14,6 @@ import {
 } from "./ui.js";
 
 const vista = $("#vista");
-let ranking = [];        // orden actual en pantalla
-let rankingOriginal = []; // orden tal como está en la base
 let tabActual = "pendientes";
 
 /* ----------------------------------------------------------- lightbox */
@@ -95,14 +94,16 @@ function entrarAlPanel(s) {
 
 async function refrescarContadores() {
   try {
-    const [pend, rech, rank] = await Promise.all([
+    const [pend, rech, rank, copes] = await Promise.all([
       listSolicitudes("pendiente"),
       listSolicitudes("rechazada"),
       listRankingsAdmin(),
+      listCopes(),
     ]);
     $("#cPend").textContent = pend.length;
     $("#cRech").textContent = rech.length;
     $("#cRank").textContent = rank.length;
+    $("#cCope").textContent = copes.length;
   } catch { /* silencioso */ }
 }
 
@@ -117,6 +118,7 @@ function error(err) {
 function cargarTab() {
   if (tabActual === "pendientes") verSolicitudes("pendiente");
   else if (tabActual === "rechazadas") verSolicitudes("rechazada");
+  else if (tabActual === "cope") verCopes();
   else verRanking();
 }
 
@@ -150,8 +152,6 @@ function tarjetaSolicitud(s, esPendiente) {
       ${esPendiente ? `
       <div class="sol-actions">
         <input class="input input--wide" placeholder="Tagline (ej. Genetic Apex)" data-tagline maxlength="60">
-        <input class="input" type="number" min="1" placeholder="Puesto" data-puesto
-               aria-label="Puesto (dejalo vacío para no asignar todavía)">
         <button class="btn btn--ok btn--sm" data-aceptar>${ICON.check} Aceptar</button>
         <button class="btn btn--danger btn--sm" data-rechazar>Rechazar</button>
       </div>` : `
@@ -184,17 +184,11 @@ async function verSolicitudes(estado) {
       btn.addEventListener("click", async () => {
         const card = btn.closest(".sol-card");
         const sol = sols.find((x) => x.id === card.dataset.id);
-        const crudo = card.querySelector("[data-puesto]").value.trim();
-        const puesto = crudo === "" ? null : Number(crudo);   // vacío = sin puesto asignado
         const tagline = card.querySelector("[data-tagline]").value.trim();
-        if (puesto !== null && (!Number.isInteger(puesto) || puesto < 1)) {
-          toast("Puesto inválido: poné un número entero o dejalo vacío", "err");
-          return;
-        }
         btn.disabled = true;
         try {
-          await aceptarSolicitud(sol, { puesto, tagline });
-          toast(puesto === null ? `${sol.nombre} entró sin puesto asignado` : `${sol.nombre} entró al puesto #${puesto}`);
+          await aceptarSolicitud(sol, { tagline });
+          toast(`${sol.nombre} entró al ranking`);
           card.remove();
           refrescarContadores();
         } catch (err) { toast(err.message, "err"); btn.disabled = false; }
@@ -243,22 +237,23 @@ async function verSolicitudes(estado) {
 }
 
 /* ------------------------------------------------------------ ranking */
+/* El puesto ya no se guarda: sale de ordenar por puntaje. Acá solo se ve
+   ese orden y se puede editar cada perfil o cerrar la edición actual. */
 
-function filaRanking(p, i) {
+let ranking = [];
+
+function filaRanking(p) {
+  const oculto = !p.activo;
   return `
-    <div class="order-row" draggable="true" data-id="${p.id}" data-idx="${i}">
-      <span class="grip">${ICON.grip}</span>
-      <span class="pos">${i + 1}</span>
+    <div class="order-row${oculto ? " order-row--oculto" : ""}" data-id="${p.id}">
+      <span class="pos">${p.puesto ?? "—"}</span>
       <img src="${esc(p.foto_frente || "")}" alt="" onerror="this.src='${avatarFallback(p.nombre)}'">
       <div class="nm">
-        ${esc(p.nombre)}${p.activo ? "" : ' <span class="pill pill--flat">oculto</span>'}
-        <small>${esc(p.tagline || p.carrera || "—")} · ${p.votos || 0} votos</small>
+        ${esc(p.nombre)}${oculto ? ' <span class="pill pill--flat">oculto</span>' : ""}
+        ${p.etiqueta_principal ? `<span class="pill pill--new" style="background:none;color:var(--gold)">${esc(p.etiqueta_principal)}</span>` : ""}
+        <small>${esc(p.tagline || p.carrera || "—")} · ${p.votos || 0} votos · ${p.puntaje || 0} pts</small>
       </div>
-      ${pillMovimiento(p.puesto, p.puesto_anterior)}
-      <div class="order-arrows">
-        <button type="button" data-sube aria-label="Subir">${ICON.flechaArriba}</button>
-        <button type="button" data-baja aria-label="Bajar">${ICON.flechaAbajo}</button>
-      </div>
+      ${!oculto ? pillMovimiento(p.puesto, p.puesto_anterior) : ""}
       <button class="btn btn--ghost btn--sm" data-editar>Editar</button>
       <button class="btn btn--danger btn--sm" data-borrar-perfil
               aria-label="Borrar del ranking" title="Borrar del ranking">${ICON.papelera}</button>
@@ -266,18 +261,16 @@ function filaRanking(p, i) {
 }
 
 function pintarRanking() {
-  const cambio = ranking.some((p, i) => rankingOriginal[i]?.id !== p.id);
   vista.innerHTML = `
     <div class="notice notice--info" style="margin-bottom:13px">${ICON.info}
-      <div>Arrastrá o usá las flechas para reordenar. Al publicar, el sitio calcula solo
-      las flechas verdes y rojas de movimiento comparando con el orden anterior.</div>
+      <div>El orden lo pone solo el puntaje (cada voto +20, cada cope -20): no se arrastra a mano.
+      Cuando quieras congelar las flechas de movimiento para la próxima edición, usá "Cerrar edición".</div>
     </div>
-    <div id="filas">${ranking.map(filaRanking).join("")}</div>
-    <div class="sticky-save" ${cambio ? "" : 'style="display:none"'} id="barraGuardar">
-      <p>Hay cambios sin publicar.</p>
-      <button class="btn btn--ghost btn--sm" id="btnDeshacer">Deshacer</button>
-      <button class="btn btn--primary btn--sm" id="btnPublicar">Publicar orden</button>
-    </div>`;
+    <div class="sticky-save" style="position:static;margin-bottom:13px">
+      <p>El puesto se recalcula solo con cada voto y cada cope.</p>
+      <button class="btn btn--primary btn--sm" id="btnCerrarEdicion">Cerrar edición</button>
+    </div>
+    <div id="filas">${ranking.map(filaRanking).join("")}</div>`;
 
   conectarFilas();
 }
@@ -286,12 +279,6 @@ function conectarFilas() {
   const cont = $("#filas");
   if (!cont) return;
 
-  cont.querySelectorAll("[data-sube]").forEach((b) =>
-    b.addEventListener("click", () => mover(Number(b.closest(".order-row").dataset.idx), -1))
-  );
-  cont.querySelectorAll("[data-baja]").forEach((b) =>
-    b.addEventListener("click", () => mover(Number(b.closest(".order-row").dataset.idx), 1))
-  );
   cont.querySelectorAll("[data-editar]").forEach((b) =>
     b.addEventListener("click", () => editar(b.closest(".order-row").dataset.id))
   );
@@ -300,7 +287,7 @@ function conectarFilas() {
     b.addEventListener("click", async () => {
       const fila = b.closest(".order-row");
       const p = ranking.find((x) => x.id === fila.dataset.id);
-      if (!confirm(`¿Borrar a "${p?.nombre}" del ranking?\n\nSe elimina el perfil y sus votos. No se puede deshacer.`)) return;
+      if (!confirm(`¿Borrar a "${p?.nombre}" del ranking?\n\nSe elimina el perfil, sus votos y sus copes. No se puede deshacer.`)) return;
       b.disabled = true;
       try {
         await borrarPerfil(fila.dataset.id);
@@ -310,53 +297,21 @@ function conectarFilas() {
     })
   );
 
-  let arrastrado = null;
-  cont.querySelectorAll(".order-row").forEach((row) => {
-    row.addEventListener("dragstart", () => { arrastrado = row; row.classList.add("is-drag"); });
-    row.addEventListener("dragend", () => { row.classList.remove("is-drag"); arrastrado = null; });
-    row.addEventListener("dragover", (e) => { e.preventDefault(); row.classList.add("is-over"); });
-    row.addEventListener("dragleave", () => row.classList.remove("is-over"));
-    row.addEventListener("drop", (e) => {
-      e.preventDefault();
-      row.classList.remove("is-over");
-      if (!arrastrado || arrastrado === row) return;
-      const desde = Number(arrastrado.dataset.idx);
-      const hasta = Number(row.dataset.idx);
-      const [item] = ranking.splice(desde, 1);
-      ranking.splice(hasta, 0, item);
-      pintarRanking();
-    });
+  $("#btnCerrarEdicion")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    if (!confirm("Esto guarda el puesto actual de cada uno como punto de comparación para la próxima edición.\n\n¿Cerrar la edición ahora?")) return;
+    btn.disabled = true;
+    btn.textContent = "Cerrando…";
+    try {
+      await cerrarEdicion();
+      toast("Edición cerrada. Las próximas flechas comparan desde acá.");
+      await verRanking();
+    } catch (err) {
+      toast(err.message, "err");
+      btn.disabled = false;
+      btn.textContent = "Cerrar edición";
+    }
   });
-
-  $("#btnDeshacer")?.addEventListener("click", () => { ranking = [...rankingOriginal]; pintarRanking(); });
-  $("#btnPublicar")?.addEventListener("click", publicar);
-}
-
-function mover(idx, delta) {
-  const destino = idx + delta;
-  if (destino < 0 || destino >= ranking.length) return;
-  [ranking[idx], ranking[destino]] = [ranking[destino], ranking[idx]];
-  pintarRanking();
-}
-
-async function publicar() {
-  const btn = $("#btnPublicar");
-  btn.disabled = true;
-  btn.textContent = "Publicando…";
-  try {
-    const filas = ranking.map((p, i) => ({
-      id: p.id,
-      puestoViejo: p.puesto,      // el que tenía antes de este cambio
-      puestoNuevo: i + 1,
-    }));
-    await publicarOrden(filas);
-    toast("Orden publicado");
-    await verRanking();
-  } catch (err) {
-    toast(err.message, "err");
-    btn.disabled = false;
-    btn.textContent = "Publicar orden";
-  }
 }
 
 async function editar(id) {
@@ -367,16 +322,30 @@ async function editar(id) {
   if (nombre === null) return;
   const tagline = prompt("Tagline (ej. Genetic Apex):", p.tagline || "");
   if (tagline === null) return;
+  const etiquetaPrincipal = prompt(
+    "Etiqueta principal (destacada en dorado junto al nombre, ej. Current Protagonist). Vacío para sacarla:",
+    p.etiqueta_principal || ""
+  );
+  if (etiquetaPrincipal === null) return;
+  const etiquetasTexto = prompt(
+    "Etiquetas, separadas por coma (ej. genetics, hunter eyes, chad):",
+    (p.etiquetas || []).join(", ")
+  );
+  if (etiquetasTexto === null) return;
   const dato = prompt("Dato a considerar:", p.dato || "");
   if (dato === null) return;
   const instagram = prompt("Instagram (sin @):", p.instagram || "");
   if (instagram === null) return;
   const visible = confirm("¿Que el perfil esté VISIBLE en el sitio?\n\nAceptar = visible · Cancelar = oculto");
 
+  const etiquetas = etiquetasTexto.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 12);
+
   try {
     await actualizarPerfil(id, {
       nombre: nombre.trim(),
       tagline: tagline.trim() || null,
+      etiqueta_principal: etiquetaPrincipal.trim() || null,
+      etiquetas,
       dato: dato.trim() || null,
       instagram: igLimpio(instagram) || null,
       activo: visible,
@@ -389,8 +358,7 @@ async function editar(id) {
 async function verRanking() {
   cargando();
   try {
-    rankingOriginal = await listRankingsAdmin();
-    ranking = [...rankingOriginal];
+    ranking = await listRankingsAdmin();
     if (!ranking.length) {
       vista.innerHTML = `
         <div class="empty">${ICON.vacio}
@@ -401,5 +369,48 @@ async function verRanking() {
     }
     pintarRanking();
     refrescarContadores();
+  } catch (err) { error(err); }
+}
+
+/* ----------------------------------------------------------------- cope */
+
+async function verCopes() {
+  cargando();
+  try {
+    const copes = await listCopes();
+    if (!copes.length) {
+      vista.innerHTML = `
+        <div class="empty">${ICON.vacio}
+          <h3>No hay copes</h3>
+          <p>Cuando alguien le ponga cope a un perfil con su justificación, aparece acá.</p>
+        </div>`;
+      return;
+    }
+    vista.innerHTML = copes
+      .map(
+        (c) => `
+      <article class="sol-card" data-id="${c.id}">
+        <h3 style="font-size:16px">${esc(c.rankings?.nombre || "Perfil eliminado")}</h3>
+        <p class="small" style="margin:8px 0 0">${esc(c.mensaje)}</p>
+        <dl class="kv" style="margin-top:9px">
+          <dt>Fecha</dt><dd>${new Date(c.creado).toLocaleString("es-UY")}</dd>
+        </dl>
+        <div class="sol-actions">
+          <button class="btn btn--ghost btn--sm" data-listo>Marcar como revisado</button>
+        </div>
+      </article>`
+      )
+      .join("");
+
+    vista.querySelectorAll("[data-listo]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const card = b.closest(".sol-card");
+        try {
+          await borrarCope(card.dataset.id);
+          card.remove();
+          refrescarContadores();
+        } catch (err) { toast(err.message, "err"); }
+      })
+    );
   } catch (err) { error(err); }
 }

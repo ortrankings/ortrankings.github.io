@@ -2,7 +2,7 @@
    UI compartida: iconos, navbar, footer, toasts, helpers
    ===================================================================== */
 
-import { SITE } from "./config.js";
+import { SITE, TURNSTILE_SITE_KEY } from "./config.js";
 import { DEMO } from "./db.js";
 
 /* ---------------------------------------------------------------- iconos */
@@ -74,25 +74,16 @@ export function avatarFallback(nombre) {
 }
 
 /** Título honorífico del puesto 1. */
-export const TITULO_BOSS = "TRUE ORT BOSS";
+export const TITULO_BOSS = "TRUE ORT CHAD";
 
-export const sinPuesto = (puesto) => puesto === null || puesto === undefined;
-
-/** Lo que va dentro de la chapa de puesto: número, o "N/A" si todavía no se asignó. */
-export function etiquetaPuesto(puesto) {
-  return sinPuesto(puesto) ? "N/A" : String(puesto);
-}
-
-/** Clase modificadora de la chapa según el puesto. */
+/** Clase modificadora de la chapa según el puesto (siempre hay un puesto: se calcula por puntaje). */
 export function claseBadge(puesto) {
-  if (sinPuesto(puesto)) return " rank-badge--sin";
   if (puesto === 1) return " rank-badge--boss";
   if (puesto <= 3) return ` rank-badge--${puesto}`;
   return "";
 }
 
 export function movimiento(puesto, anterior) {
-  if (sinPuesto(puesto)) return { tipo: "sin", valor: 0 };
   if (anterior === null || anterior === undefined) return { tipo: "new", valor: 0 };
   const delta = anterior - puesto;
   if (delta > 0) return { tipo: "up", valor: delta };
@@ -102,11 +93,30 @@ export function movimiento(puesto, anterior) {
 
 export function pillMovimiento(puesto, anterior) {
   const m = movimiento(puesto, anterior);
-  if (m.tipo === "sin") return `<span class="pill pill--sin">SIN PUESTO</span>`;
   if (m.tipo === "new") return `<span class="pill pill--new">NUEVO</span>`;
   if (m.tipo === "up") return `<span class="pill pill--up">${ICON.arriba}+${m.valor}</span>`;
   if (m.tipo === "down") return `<span class="pill pill--down">${ICON.abajo}-${m.valor}</span>`;
   return `<span class="pill pill--flat">—</span>`;
+}
+
+/* --------------------------------------------------------------- etiquetas */
+
+const COLORES_ETIQUETA = ["rosa", "violeta", "azul", "verdeagua", "verde", "naranja", "amarillo", "gris"];
+
+function colorEtiqueta(texto) {
+  let h = 0;
+  for (const c of String(texto)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return COLORES_ETIQUETA[h % COLORES_ETIQUETA.length];
+}
+
+/** Fila de etiquetas libres (chips de colores) más el score al final. */
+export function filaEtiquetas(etiquetas, puntaje) {
+  const chips = (etiquetas || [])
+    .filter(Boolean)
+    .map((t) => `<span class="tag tag--${colorEtiqueta(t)}">${esc(t)}</span>`)
+    .join("");
+  const score = `<span class="tag tag--score">Score: ${Math.round(puntaje || 0)}</span>`;
+  return `<div class="tags-row">${chips}${score}</div>`;
 }
 
 /* ---------------------------------------------------------------- navbar */
@@ -175,6 +185,57 @@ export function montarFooter() {
         </p>
       </div>
     </footer>`;
+}
+
+/* -------------------------------------------------------------- turnstile */
+
+let _turnstileCargando = null;
+
+function cargarScriptTurnstile() {
+  if (window.turnstile) return Promise.resolve();
+  if (_turnstileCargando) return _turnstileCargando;
+  _turnstileCargando = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+    s.async = true;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("No se pudo cargar la verificación. Revisá tu conexión."));
+    document.head.appendChild(s);
+  });
+  return _turnstileCargando;
+}
+
+/**
+ * Pide un token de Turnstile antes de votar o copear. Si TURNSTILE_SITE_KEY
+ * está vacío (todavía no se configuró Cloudflare), devuelve "" al toque:
+ * la Edge Function acepta ese caso mientras no tenga su propio secreto cargado.
+ */
+export async function obtenerTurnstileToken() {
+  if (!TURNSTILE_SITE_KEY) return "";
+  await cargarScriptTurnstile();
+
+  let host = document.getElementById("turnstileHost");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "turnstileHost";
+    host.style.cssText =
+      "position:fixed;left:0;right:0;bottom:14px;display:flex;justify-content:center;z-index:500;pointer-events:none";
+    document.body.appendChild(host);
+  }
+  host.innerHTML = "";
+  const caja = document.createElement("div");
+  caja.style.pointerEvents = "auto";
+  host.appendChild(caja);
+
+  return new Promise((resolve, reject) => {
+    window.turnstile.render(caja, {
+      sitekey: TURNSTILE_SITE_KEY,
+      size: "flexible",
+      callback: (token) => { host.innerHTML = ""; resolve(token); },
+      "error-callback": () => { host.innerHTML = ""; reject(new Error("No se pudo verificar. Probá de nuevo.")); },
+      "expired-callback": () => { host.innerHTML = ""; reject(new Error("La verificación expiró. Probá de nuevo.")); },
+    });
+  });
 }
 
 /* ---------------------------------------------------------------- toasts */

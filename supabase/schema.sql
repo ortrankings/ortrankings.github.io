@@ -6,7 +6,8 @@
 --    2. Menú lateral → SQL Editor → New query
 --    3. Pegá TODO este archivo y apretá "Run"
 --
---  Es idempotente: podés correrlo más de una vez sin romper nada.
+--  Es idempotente: podés correrlo más de una vez sin romper nada, incluso
+--  sobre una base que ya tenía la versión anterior de este esquema.
 -- =====================================================================
 
 create extension if not exists "pgcrypto";
@@ -15,23 +16,34 @@ create extension if not exists "pgcrypto";
 --  TABLAS
 -- ---------------------------------------------------------------------
 
--- Perfiles publicados en el ranking
+-- Perfiles publicados en el ranking. El puesto NO se guarda: se calcula
+-- siempre ordenando por puntaje (ver más abajo). Lo único que se guarda
+-- es la foto del puesto anterior, para poder dibujar las flechas.
 create table if not exists public.rankings (
-  id               uuid primary key default gen_random_uuid(),
-  puesto           integer,                  -- null = todavía SIN PUESTO ASIGNADO
-  puesto_anterior  integer,                  -- null = ingreso nuevo (chapa "NUEVO")
-  nombre           text        not null,
-  tagline          text,
-  carrera          text,
-  instagram        text,
-  dato             text,
-  foto_perfil      text,
-  foto_frente      text,
-  votos            integer     not null default 0,
-  activo           boolean     not null default true,
-  creado           timestamptz not null default now()
+  id                  uuid primary key default gen_random_uuid(),
+  puesto_anterior     integer,                  -- null = ingreso nuevo (chapa "NUEVO")
+  nombre              text        not null,
+  tagline             text,
+  etiqueta_principal  text,                     -- destacada en dorado junto al nombre
+  etiquetas           text[]      not null default '{}', -- chips de colores libres
+  carrera             text,
+  instagram           text,
+  dato                text,
+  foto_frente         text,
+  votos               integer     not null default 0,
+  puntaje             integer     not null default 0,
+  activo              boolean     not null default true,
+  creado              timestamptz not null default now()
 );
-create index if not exists rankings_puesto_idx on public.rankings (puesto);
+
+-- Si la base ya tenía una versión vieja del esquema, la actualiza en el lugar.
+alter table public.rankings add column if not exists puntaje integer not null default 0;
+alter table public.rankings add column if not exists etiqueta_principal text;
+alter table public.rankings add column if not exists etiquetas text[] not null default '{}';
+alter table public.rankings drop column if exists puesto;
+alter table public.rankings drop column if exists foto_perfil;
+drop index if exists rankings_puesto_idx;
+create index if not exists rankings_puntaje_idx on public.rankings (puntaje desc);
 
 -- Solicitudes de ingreso enviadas desde /entrar
 create table if not exists public.solicitudes (
@@ -41,7 +53,7 @@ create table if not exists public.solicitudes (
   carrera            text not null,
   instagram          text,
   dato               text,
-  foto_perfil        text not null,
+  foto_perfil        text not null,          -- solo para evaluar, nunca se publica
   foto_frente        text not null,
   estado             text not null default 'pendiente'
                      check (estado in ('pendiente', 'aceptada', 'rechazada')),
@@ -50,11 +62,26 @@ create table if not exists public.solicitudes (
 );
 create index if not exists solicitudes_estado_idx on public.solicitudes (estado, creado);
 
--- Votos de la comunidad (uno por perfil y por navegador)
+-- Votos de la comunidad (uno por perfil y por navegador). Solo se insertan
+-- desde la Edge Function "votar", nunca directo desde el navegador.
 create table if not exists public.votos (
   id         uuid primary key default gen_random_uuid(),
   perfil_id  uuid not null references public.rankings (id) on delete cascade,
   votante    text not null,
+  ip         text,
+  creado     timestamptz not null default now(),
+  unique (perfil_id, votante)
+);
+alter table public.votos add column if not exists ip text;
+
+-- "Cope": el dislike con justificación. Sin foto. Resta puntaje y queda
+-- para que el admin lo lea en el panel. Solo vía la Edge Function "votar".
+create table if not exists public.copes (
+  id         uuid primary key default gen_random_uuid(),
+  perfil_id  uuid not null references public.rankings (id) on delete cascade,
+  mensaje    text not null,
+  votante    text not null,
+  ip         text,
   creado     timestamptz not null default now(),
   unique (perfil_id, votante)
 );
@@ -69,10 +96,21 @@ create table if not exists public.reportes (
   creado     timestamptz not null default now()
 );
 
+-- Límite de intentos por IP y por día, para votos y copes. Lo usa
+-- exclusivamente la Edge Function; el navegador nunca la toca.
+create table if not exists public.intentos_ip (
+  ip         text not null,
+  ambito     text not null check (ambito in ('voto', 'cope')),
+  dia        date not null default current_date,
+  cantidad   integer not null default 0,
+  primary key (ip, ambito, dia)
+);
+
 -- ---------------------------------------------------------------------
---  El contador de votos se mantiene solo
+--  El contador de votos y el puntaje se mantienen solos
 -- ---------------------------------------------------------------------
 
+-- Cuántos votos tiene cada perfil, para mostrarlo en el sitio.
 create or replace function public.sync_votos()
 returns trigger
 language plpgsql
@@ -94,6 +132,42 @@ create trigger trg_sync_votos
   after insert or delete on public.votos
   for each row execute function public.sync_votos();
 
+-- Puntaje: cada voto suma, cada cope resta. El puesto del ranking sale
+-- siempre de ordenar por esta columna, nunca se asigna a mano.
+create or replace function public.sumar_puntaje_voto()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.rankings set puntaje = puntaje + 20 where id = new.perfil_id;
+  return null;
+end;
+$$;
+
+drop trigger if exists trg_puntaje_voto on public.votos;
+create trigger trg_puntaje_voto
+  after insert on public.votos
+  for each row execute function public.sumar_puntaje_voto();
+
+create or replace function public.restar_puntaje_cope()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.rankings set puntaje = puntaje - 20 where id = new.perfil_id;
+  return null;
+end;
+$$;
+
+drop trigger if exists trg_puntaje_cope on public.copes;
+create trigger trg_puntaje_cope
+  after insert on public.copes
+  for each row execute function public.restar_puntaje_cope();
+
 -- ---------------------------------------------------------------------
 --  ROW LEVEL SECURITY
 --  Esto es lo que hace que la clave "anon" (pública, visible en el
@@ -103,7 +177,9 @@ create trigger trg_sync_votos
 alter table public.rankings    enable row level security;
 alter table public.solicitudes enable row level security;
 alter table public.votos       enable row level security;
+alter table public.copes       enable row level security;
 alter table public.reportes    enable row level security;
+alter table public.intentos_ip enable row level security;
 
 -- ---- rankings: lectura pública de los activos, escritura solo admin ----
 drop policy if exists "rankings lectura publica" on public.rankings;
@@ -135,23 +211,37 @@ drop policy if exists "solicitudes admin borra" on public.solicitudes;
 create policy "solicitudes admin borra" on public.solicitudes
   for delete to authenticated using (true);
 
--- ---- votos --------------------------------------------------------------
+-- ---- votos: SIN acceso público. Solo entran por la Edge Function, que -----
+-- usa la clave service_role y por lo tanto se salta estas políticas.
+-- El navegador ya no puede insertar un voto por su cuenta.
 drop policy if exists "votos insert publico" on public.votos;
-create policy "votos insert publico" on public.votos
-  for insert to anon, authenticated with check (true);
-
 drop policy if exists "votos lectura publica" on public.votos;
-create policy "votos lectura publica" on public.votos
-  for select to anon, authenticated using (true);
+
+drop policy if exists "votos admin lee" on public.votos;
+create policy "votos admin lee" on public.votos
+  for select to authenticated using (true);
 
 drop policy if exists "votos admin borra" on public.votos;
 create policy "votos admin borra" on public.votos
   for delete to authenticated using (true);
 
+-- ---- copes: mismo criterio. Solo la Edge Function inserta, solo el admin lee --
+drop policy if exists "copes admin lee" on public.copes;
+create policy "copes admin lee" on public.copes
+  for select to authenticated using (true);
+
+drop policy if exists "copes admin borra" on public.copes;
+create policy "copes admin borra" on public.copes
+  for delete to authenticated using (true);
+
+-- ---- intentos_ip: tabla interna, nadie del público la toca -------------
+-- (sin políticas de anon a propósito: solo la Edge Function, vía service_role)
+
 -- ---- reportes: cualquiera pide la baja, solo el admin los lee -----------
 drop policy if exists "reportes insert publico" on public.reportes;
 create policy "reportes insert publico" on public.reportes
-  for insert to anon, authenticated with check (true);
+  for insert to anon, authenticated
+  with check (true);
 
 drop policy if exists "reportes admin lee" on public.reportes;
 create policy "reportes admin lee" on public.reportes
@@ -192,4 +282,8 @@ create policy "fotos admin borra" on storage.objects
 --
 --  Y desactivá el registro abierto para que nadie más se cree un admin:
 --    Authentication → Providers → Email → "Allow new users to sign up" = OFF
+--
+--  Para que voten y copeen de verdad hace falta además desplegar la
+--  Edge Function "votar" (carpeta supabase/functions/votar) y cargar el
+--  secreto de Cloudflare Turnstile. Ver README.md, sección "Votos y cope".
 -- =====================================================================
