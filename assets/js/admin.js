@@ -260,7 +260,7 @@ function filaRanking(p, i) {
       <span class="pos">${etiquetaPuesto(p.puesto)}</span>
       <img src="${esc(p.foto_frente || "")}" alt="" onerror="this.src='${avatarFallback(p.nombre)}'">
       <div class="nm">
-        ${esc(p.nombre)}${oculto ? ' <span class="pill pill--flat">oculto</span>' : ""}
+        ${esc(p.nombre)}${p.campeon ? ` <span class="rank-corona" title="${esc(p.campeon)}">${ICON.corona}</span>` : ""}${oculto ? ' <span class="pill pill--flat">oculto</span>' : ""}
         ${p.etiqueta_principal ? `<span class="pill pill--new" style="background:none;color:var(--gold)">${esc(p.etiqueta_principal)}</span>` : ""}
         <small>${esc(p.tagline || p.carrera || "—")} · base #${p.puesto_base ?? "—"}${
           p.desplazamiento ? ` ${p.desplazamiento > 0 ? "▲" : "▼"}${Math.abs(p.desplazamiento)} por votos` : ""
@@ -519,6 +519,12 @@ Vacio = sin puesto:`,
   if (nombre === null) return;
   const tagline = prompt("Tagline (ej. Genetic Apex):", p.tagline || "");
   if (tagline === null) return;
+  const campeon = prompt(
+    "Corona de campeon (ej. CAMPEON 2026-1). Es permanente y no depende del puesto.\nVacio para sacarla:",
+    p.campeon || ""
+  );
+  if (campeon === null) return;
+
   const etiquetaPrincipal = prompt(
     "Etiqueta principal (destacada en dorado junto al nombre, ej. Current Protagonist). Vacío para sacarla:",
     p.etiqueta_principal || ""
@@ -541,6 +547,7 @@ Vacio = sin puesto:`,
     await actualizarPerfil(id, {
       puesto: puestoBase,
       nombre: nombre.trim(),
+      campeon: campeon.trim() || null,
       tagline: tagline.trim() || null,
       etiqueta_principal: etiquetaPrincipal.trim() || null,
       etiquetas,

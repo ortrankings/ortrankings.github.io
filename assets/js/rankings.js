@@ -34,7 +34,9 @@ function tarjeta(p) {
       <img class="rank-avatar" src="${esc(p.foto_frente || "")}" alt=""
            loading="lazy" onerror="this.src='${avatarFallback(p.nombre)}'">
       <div class="rank-body">
-        <div class="rank-name">${esc(p.nombre)}</div>
+        <div class="rank-name">${esc(p.nombre)}${
+                p.campeon ? `<span class="rank-corona" title="${esc(p.campeon)}">${ICON.corona}</span>` : ""
+              }</div>
         <div class="rank-tag${esBoss || p.etiqueta_principal ? " rank-tag--boss" : ""}">${esc(subtitulo)}</div>
       </div>
       ${pillMovimiento(p.puesto, p.puesto_anterior)}

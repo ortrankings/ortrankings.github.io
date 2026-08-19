@@ -746,6 +746,33 @@ h1, h2, h3 { margin: 0; line-height: 1.15; letter-spacing: -0.02em; font-weight:
   vertical-align: middle;
 }
 
+/* Corona de campeón: permanente, la deja puesta el admin */
+.campeon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  padding: 5px 13px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(242, 183, 5, 0.22), rgba(224, 138, 0, 0.14));
+  border: 1px solid rgba(242, 183, 5, 0.5);
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: 0 0 18px rgba(242, 183, 5, 0.18);
+}
+.campeon svg { width: 14px; height: 14px; }
+
+.rank-corona {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 6px;
+  color: var(--gold);
+}
+.rank-corona svg { width: 14px; height: 14px; }
+
 /* Fila de etiquetas libres + score, estilo tabla de datos del perfil */
 .tags-row {
   display: flex; flex-wrap: wrap; gap: 6px;

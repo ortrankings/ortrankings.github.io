@@ -53,6 +53,10 @@ alter table public.rankings add column if not exists sc_consistency    integer n
 alter table public.rankings add column if not exists sc_momentum       integer not null default 0;
 alter table public.rankings add column if not exists puesto integer;
 alter table public.rankings add column if not exists copes integer not null default 0;
+
+-- Corona de campeón: se la deja puesta el admin al que gana el semestre.
+-- Es permanente, no depende del puesto actual.
+alter table public.rankings add column if not exists campeon text;
 alter table public.rankings drop column if exists foto_perfil;
 create index if not exists rankings_puesto_idx on public.rankings (puesto);
 

@@ -6,7 +6,7 @@ import { listRankings, votar, yaVoto, enviarCope, yaCope } from "./db.js";
 import { SITE } from "./config.js";
 import {
   $, ICON, esc, montarNav, montarFooter, pillMovimiento, avatarFallback,
-  igLimpio, toast, TITULO_BOSS, filaEtiquetas, influenceBreakdown, obtenerTurnstileToken,
+  igLimpio, toast, TITULO_BOSS, filaEtiquetas, influenceBreakdown, obtenerTurnstileToken, chapaCampeon,
   sinPuesto, etiquetaPuesto,
 } from "./ui.js";
 
@@ -84,6 +84,7 @@ function render(p, vecinos) {
           ${esc(p.nombre)}
           ${p.etiqueta_principal ? `<span class="profile__principal">${esc(p.etiqueta_principal)}</span>` : ""}
         </h1>
+        ${chapaCampeon(p.campeon)}
         ${p.tagline ? `<p class="profile__tag">${esc(p.tagline)}</p>` : ""}
         ${filaEtiquetas(p.etiquetas, p)}
         <div class="profile__chips">

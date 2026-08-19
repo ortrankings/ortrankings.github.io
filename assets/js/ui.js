@@ -36,6 +36,7 @@ export const ICON = {
   candado: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
   papelera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
   ojo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  corona: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 8.5 6.2 12l3.1-6.2a.8.8 0 0 1 1.4 0L13.8 12 17 8.5a.8.8 0 0 1 1.4.6L17.2 18a1 1 0 0 1-1 .8H7.8a1 1 0 0 1-1-.8L5.6 9.1A.8.8 0 0 1 7 8.5z"/></svg>`,
   vacio: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>`,
 };
 
@@ -207,6 +208,12 @@ function colorEtiqueta(texto) {
   let h = 0;
   for (const c of String(texto)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return COLORES_ETIQUETA[h % COLORES_ETIQUETA.length];
+}
+
+/** Chapa de campeón: la deja puesta el admin y no se cae aunque baje de puesto. */
+export function chapaCampeon(texto) {
+  if (!texto) return "";
+  return `<span class="campeon">${ICON.corona} ${esc(texto)}</span>`;
 }
 
 /** Fila de etiquetas libres (chips de colores) más el score manual al final. */
